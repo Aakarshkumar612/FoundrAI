@@ -1,0 +1,65 @@
+version: "3.9"
+
+# Apache Superset stack for FoundrAI embedded dashboards.
+# Usage:
+#   cp superset/.env.example superset/.env   # fill in secrets
+#   docker compose -f superset/docker-compose.yml up -d
+#   docker compose -f superset/docker-compose.yml exec superset bash superset/init.sh
+
+services:
+  superset:
+    image: apache/superset:3.1.3
+    container_name: foundr-superset
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_GUEST_TOKEN_JWT_SECRET: ${SUPERSET_GUEST_TOKEN_JWT_SECRET}
+      SUPERSET_DB_URI: postgresql+psycopg2://superset:${POSTGRES_PASSWORD}@superset-db:5432/superset
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      PYTHONPATH: /app/pythonpath
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+      - ./init.sh:/app/init.sh:ro
+      - ./dashboards:/app/dashboards:ro
+      - superset_home:/app/superset_home
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  superset-db:
+    image: postgres:15-alpine
+    container_name: foundr-superset-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: superset
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - superset_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: foundr-redis
+    restart: unless-stopped
+    volumes:
+      - superset_redis:/data
+
+volumes:
+  superset_home:
+  superset_db:
+  superset_redis:

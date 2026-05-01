@@ -1,0 +1,68 @@
+name: foundr-ai
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # ── Python runtime ────────────────────────────────────────────────────────
+  - python=3.12          # Required by AutoGen ≥0.2, Haystack 2.x, FLAML 2.x
+  - pip=24.0
+
+  # ── Core system libs (Conda-managed for binary compatibility) ────────────
+  - numpy=1.26           # Monte Carlo engine; must be pre-compiled for SciPy ABI
+  - scipy=1.13           # Statistical distributions for Monte Carlo
+  - pandas=2.2           # Financial CSV parsing and feature engineering
+  - scikit-learn=1.4     # FLAML dependency; preprocessing pipelines
+
+  # ── pip-managed packages (everything not on conda-forge or needs pip) ────
+  - pip:
+    # API framework
+    - fastapi==0.111.0         # Async REST + SSE + WebSocket; best DX in Python
+    - uvicorn[standard]==0.29.0 # ASGI server; [standard] includes websockets + httptools
+    - pydantic[email]==2.7.1   # v2 required by FastAPI 0.111; 2-10x faster than v1
+    - pydantic-settings==2.2.1 # Typed .env loading; replaces manual os.getenv chains
+
+    # Auth
+    - python-jose[cryptography]==3.3.0  # JWT decode/verify; [cryptography] for RS256
+    - passlib[bcrypt]==1.7.4            # Password hashing; bcrypt is the gold standard
+
+    # AI agent orchestration
+    - pyautogen==0.2.28        # Microsoft AutoGen; GroupChat + AssistantAgent
+    - groq==0.9.0              # Groq Python SDK; ~500 tok/sec free-tier inference
+
+    # RAG pipeline
+    - haystack-ai==2.3.1       # deepset Haystack 2.x; modular pipeline architecture
+    - ragatouille==0.0.8.post2 # ColBERT late-interaction retrieval (RAGatouille wrapper)
+    - sentence-transformers==2.7.0  # ColBERT query/doc encoders
+    - pgvector==0.2.5          # pgvector Python client for vector similarity queries
+
+    # News ingestion
+    - newscatcherapi==0.7.0    # NewsCatcher Python client for topic-based news fetch
+    - news-please==1.5.32      # Full article extraction from URLs
+    - apscheduler==3.10.4      # Background job scheduling (4-hour news ingestion cycle)
+
+    # AutoML
+    - flaml[automl]==2.1.2     # Microsoft FLAML; automated model selection
+    # autogluon.tabular is heavy (~2GB) — install separately in dev, exclude from CI
+    # pip install autogluon.tabular==1.1.0
+
+    # Storage
+    - supabase==2.4.3          # Supabase Python client (DB + Auth + Realtime)
+    - google-cloud-storage==2.16.0  # GCP Cloud Storage client
+
+    # HTTP / async utilities
+    - httpx==0.27.0            # Async HTTP client used by FastAPI test client
+    - python-multipart==0.0.9  # Required by FastAPI for multipart/form-data uploads
+    - aiofiles==23.2.1         # Async file I/O for upload streaming
+
+    # Testing
+    - pytest==8.2.0
+    - pytest-asyncio==0.23.6   # Async test support for FastAPI endpoints
+    - pytest-cov==5.0.0        # Coverage reporting (target: ≥80%)
+    - faker==25.0.0            # Synthetic data generation for fixtures
+
+    # Dev tools
+    - python-dotenv==1.0.1     # Load .env at runtime (dev only)
+    - black==24.4.2            # Code formatter (88 char line length)
+    - ruff==0.4.4              # Fast linter + import sorter (replaces flake8/isort)
+    - pre-commit==3.7.1        # Git hook runner for Black + Ruff on commit

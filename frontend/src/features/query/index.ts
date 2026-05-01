@@ -1,0 +1,1 @@
+export { QueryPage } from "./QueryPage";

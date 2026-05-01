@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p backend/auth backend/agents backend/rag backend/news backend/automl backend/storage/migrations backend/routers backend/tests)",
+      "Bash(mkdir -p frontend/src/components frontend/src/pages frontend/src/hooks frontend/src/lib)",
+      "Bash(mkdir -p docker .github/workflows data/synthetic)",
+      "Bash(python -m pytest backend/tests/test_auth.py -v --tb=short)",
+      "Bash(conda run *)",
+      "Bash(conda env *)",
+      "Bash(python -m pytest backend/tests/test_news.py -v)",
+      "Bash(pip install *)",
+      "Bash(python -m pytest backend/tests/ -v --tb=short)",
+      "Bash(python -c \"import flaml; print\\('flaml ok'\\)\")",
+      "Bash(python -c \"import numpy; print\\('numpy ok'\\)\")",
+      "Bash(python -c \"import scipy; print\\('scipy ok'\\)\")",
+      "Bash(python -c \"import flaml; import numpy; import scipy; print\\('all ok'\\)\")",
+      "Bash(python -m pytest backend/tests/test_automl.py -v)",
+      "Bash(python -m pytest backend/tests/ -v --tb=short -q)",
+      "Bash(python -c \"import supabase; print\\('supabase ok'\\)\")",
+      "Bash(python -c \"from google.cloud import storage; print\\('gcs ok'\\)\")",
+      "Bash(python -m pytest backend/tests/test_storage.py -v)",
+      "Bash(python -m pytest backend/tests/test_storage.py -v --tb=short)",
+      "Bash(python -m pytest backend/tests/ -q --tb=short)",
+      "Bash(python -m pytest backend/tests/test_extractors.py backend/tests/test_storage.py -v --tb=short --no-header -rN)",
+      "Bash(python -m pytest backend/tests/test_api.py -v --tb=short -q)",
+      "Bash(python -m pytest backend/tests/ --tb=short -q)",
+      "Bash(python -m pytest backend/tests/test_api.py -v --tb=short)",
+      "Bash(python -m pytest backend/tests/test_automl.py -q)",
+      "Bash(python -m pytest backend/tests/ -q --tb=no)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl *)",
+      "WebFetch(domain:getdesign.md)"
+    ]
+  }
+}

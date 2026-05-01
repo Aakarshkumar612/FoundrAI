@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoundrAI — System Design</title>
+<style>
+  :root {
+    --bg: #0D1117;
+    --surface: #161B22;
+    --accent: #1F6FEB;
+    --text: #E6EDF3;
+    --muted: #8B949E;
+    --border: rgba(31,111,235,0.25);
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f78166;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;font-size:15px}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;line-height:1.7;display:flex;min-height:100vh}
+
+  #progress-bar{position:fixed;top:0;left:0;height:3px;background:var(--accent);width:0%;z-index:1000;transition:width .1s}
+
+  #sidebar{position:fixed;top:0;left:0;width:248px;height:100vh;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;z-index:100;display:flex;flex-direction:column}
+  #sidebar h2{color:var(--accent);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;padding:0 20px 12px;border-bottom:1px solid var(--border);margin-bottom:8px}
+  #sidebar a{display:block;padding:5px 20px;color:var(--muted);text-decoration:none;font-size:.78rem;border-left:2px solid transparent;transition:all .2s}
+  #sidebar a:hover,#sidebar a.active{color:var(--text);border-left-color:var(--accent);background:rgba(31,111,235,.06)}
+  #sidebar .sub{padding-left:34px;font-size:.73rem}
+
+  main{margin-left:248px;padding:48px 56px;max-width:1100px;width:100%}
+
+  .site-header{border-bottom:1px solid var(--border);padding-bottom:32px;margin-bottom:48px}
+  .site-header h1{font-size:2rem;font-weight:700;letter-spacing:-.02em}
+  .site-header .tagline{color:var(--accent);font-size:.95rem;margin-top:4px}
+  .meta-row{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .badge{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:.73rem;color:var(--muted)}
+  .badge span{color:var(--text)}
+
+  section{margin-bottom:64px;scroll-margin-top:24px}
+  h2.st{font-size:1.25rem;color:var(--accent);margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  h2.st .num{background:var(--accent);color:#fff;border-radius:4px;font-size:.72rem;padding:2px 8px;font-weight:700}
+  h3{font-size:.95rem;color:var(--text);margin:28px 0 10px;font-weight:600}
+  p{margin-bottom:12px;color:var(--text);font-size:.88rem}
+  ul,ol{padding-left:22px;margin-bottom:14px}
+  li{margin-bottom:5px;color:var(--text);font-size:.87rem}
+  strong{color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.81rem}
+  th{background:rgba(31,111,235,.1);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border);font-weight:600;font-size:.76rem}
+  td{padding:8px 12px;border:1px solid var(--border);color:var(--text);vertical-align:top}
+  tr:nth-child(even) td{background:rgba(22,27,34,.4)}
+
+  pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;font-size:.77rem;overflow-x:auto;color:var(--text);line-height:1.65;white-space:pre-wrap;word-break:break-word;margin:14px 0}
+
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin:14px 0}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+  .card-title{font-weight:600;color:var(--text);font-size:.88rem;margin-bottom:6px}
+  .card p{font-size:.79rem;color:var(--muted);margin-bottom:4px}
+  .card .tag{font-size:.68rem;background:rgba(31,111,235,.12);color:var(--accent);border:1px solid rgba(31,111,235,.3);border-radius:3px;padding:1px 7px;display:inline-block;margin-bottom:6px}
+
+  .flow{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0}
+  .flow-box{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 14px;font-size:.78rem;color:var(--text);white-space:nowrap}
+  .flow-arrow{color:var(--accent);font-size:1rem}
+
+  .status-done{color:var(--green);background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.25);border-radius:3px;padding:1px 7px;font-size:.69rem}
+  .status-plan{color:var(--yellow);background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.25);border-radius:3px;padding:1px 7px;font-size:.69rem}
+
+  .agent-row{display:grid;grid-template-columns:160px 180px 1fr 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:start;font-size:.8rem}
+  .agent-row:last-child{border-bottom:none}
+  .agent-name{font-weight:600;color:var(--text)}
+  .agent-model{color:var(--muted);font-size:.75rem}
+
+  .sse-event{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid rgba(31,111,235,.1);font-size:.8rem}
+  .sse-type{font-family:monospace;background:rgba(31,111,235,.12);color:var(--accent);border-radius:3px;padding:1px 8px;font-size:.73rem;white-space:nowrap}
+
+  .steps{list-style:none;padding:0;counter-reset:step}
+  .steps li{counter-increment:step;display:flex;gap:14px;margin-bottom:16px;align-items:flex-start}
+  .steps li::before{content:counter(step);min-width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+  .steps .sl{font-weight:600;font-size:.84rem;color:var(--text)}
+  .steps .sd{font-size:.79rem;color:var(--muted)}
+
+  .env-table td:first-child{font-family:monospace;font-size:.76rem;color:#e8a57d}
+  .env-table td:nth-child(2){font-size:.75rem;color:var(--green);font-weight:600}
+
+  @media(max-width:860px){
+    #sidebar{display:none}
+    main{margin-left:0;padding:24px 20px}
+    .agent-row{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav id="sidebar">
+  <h2>FoundrAI System Design</h2>
+  <a href="#overview">Overview</a>
+  <a href="#stack">Tech Stack</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#data-flow">Data Flow</a>
+  <a href="#auth">Auth & Security</a>
+  <a href="#agents">Agent Pipeline</a>
+  <a href="#rag">RAG Pipeline</a>
+  <a href="#montecarlo">Monte Carlo</a>
+  <a href="#news">News Ingestion</a>
+  <a href="#storage">Storage Layer</a>
+  <a href="#api">API Reference</a>
+  <a href="#database">Database Schema</a>
+  <a href="#frontend">Frontend</a>
+  <a href="#design">Design System</a>
+  <a href="#env">Environment Vars</a>
+  <a href="#setup">Local Setup</a>
+  <a href="#layers">Build Layers</a>
+</nav>
+
+<main>
+
+<!-- Header -->
+<header class="site-header">
+  <h1>FoundrAI — System Design</h1>
+  <p class="tagline">Autonomous AI Advisory Platform for Startup Founders</p>
+  <div class="meta-row">
+    <span class="badge">Backend: <span>FastAPI + Python 3.12</span></span>
+    <span class="badge">AI: <span>Groq + Llama 3.1 / 3.3</span></span>
+    <span class="badge">RAG: <span>pgvector + sentence-transformers</span></span>
+    <span class="badge">DB: <span>Supabase PostgreSQL 15</span></span>
+    <span class="badge">Frontend: <span>React 18 + Vite + TailwindCSS</span></span>
+    <span class="badge">Deploy: <span>GCP Cloud Run + Firebase Hosting</span></span>
+  </div>
+</header>
+
+<!-- 1. Overview -->
+<section id="overview">
+  <h2 class="st"><span class="num">1</span> What FoundrAI Does</h2>
+  <p>FoundrAI is a private AI analyst for startup founders. A founder uploads their financial data (CSV, Excel, PDF) and asks natural-language questions. Four specialist AI agents answer in sequence, each reading the previous agent's output — producing structured analysis grounded in the founder's own data plus live market news.</p>
+
+  <h3>User Journey</h3>
+  <ol class="steps">
+    <li><div><p class="sl">Register / Login</p><p class="sd">Supabase Auth creates a JWT-secured session. Email + password with optional TOTP MFA (6-digit authenticator app).</p></div></li>
+    <li><div><p class="sl">Upload Financial Document</p><p class="sd">Drag and drop a CSV, Excel, PDF, DOCX, or image. The backend extracts text, detects financial columns (revenue, burn, CAC, LTV), chunks the document, embeds it into pgvector, and saves structured metrics as a JSON snapshot.</p></div></li>
+    <li><div><p class="sl">Ask a Question</p><p class="sd">e.g. "What is my runway if CAC increases 20% next quarter?" The question goes to the 4-agent pipeline. Agents read the founder's document chunks (RAG retrieval) and answer in sequence, streaming each result back via SSE.</p></div></li>
+    <li><div><p class="sl">Run a Monte Carlo Simulation</p><p class="sd">Choose bear / base / bull scenario, set CAC and burn change sliders, pick 1–24 month horizon. 10,000 paths run in ~100ms. Returns P10/P50/P90 revenue bands and runway estimates.</p></div></li>
+    <li><div><p class="sl">View Charts</p><p class="sd">Recharts AreaChart renders the three confidence bands with gradient fills. Historical simulations stored in Supabase for comparison.</p></div></li>
+  </ol>
+</section>
+
+<!-- 2. Tech Stack -->
+<section id="stack">
+  <h2 class="st"><span class="num">2</span> Tech Stack</h2>
+  <table>
+    <tr><th>Layer</th><th>Technology</th><th>Why chosen</th></tr>
+    <tr><td><strong>Backend API</strong></td><td>FastAPI + Uvicorn (Python 3.12)</td><td>Async-native, automatic OpenAPI docs, type-safe Pydantic schemas, fast startup for Cloud Run</td></tr>
+    <tr><td><strong>AI Agents</strong></td><td>Groq API — Llama 3.1-8b-instant, Llama 3.3-70b-versatile</td><td>~500 tok/sec throughput, free tier (10K tok/min), enforced JSON output mode</td></tr>
+    <tr><td><strong>RAG — Embeddings</strong></td><td>sentence-transformers (all-MiniLM-L6-v2)</td><td>384-dim vectors, runs locally, no API cost, fast inference</td></tr>
+    <tr><td><strong>RAG — Vector DB</strong></td><td>pgvector on Supabase PostgreSQL</td><td>No extra service needed, same DB as auth and app data, cosine similarity with IVFFlat index</td></tr>
+    <tr><td><strong>Simulation</strong></td><td>NumPy vectorised Monte Carlo</td><td>10K paths in &lt;200ms, pure Python, no GPU, deterministic with seed</td></tr>
+    <tr><td><strong>Auth</strong></td><td>Supabase Auth + PyJWT middleware</td><td>Managed JWTs, built-in TOTP MFA, Row Level Security, refresh token rotation</td></tr>
+    <tr><td><strong>Database</strong></td><td>Supabase PostgreSQL 15</td><td>One hosted DB, RLS per table, real-time subscriptions available, pgvector extension</td></tr>
+    <tr><td><strong>File Storage</strong></td><td>GCP Cloud Storage</td><td>Durable raw upload storage, signed URLs, cheap egress for Cloud Run co-location</td></tr>
+    <tr><td><strong>News</strong></td><td>NewsCatcher API + News-Please + APScheduler</td><td>Structured news search + full-text extraction + scheduled every 6h background job</td></tr>
+    <tr><td><strong>Config</strong></td><td>pydantic-settings</td><td>Type-validated env vars, .env file support, cached singleton via @lru_cache</td></tr>
+    <tr><td><strong>Frontend</strong></td><td>React 18 + Vite 5 + TailwindCSS 3</td><td>Fast HMR, component isolation, utility-first styling with design tokens</td></tr>
+    <tr><td><strong>Animations</strong></td><td>Framer Motion 11</td><td>SSR-safe, declarative variants, stagger children out of the box</td></tr>
+    <tr><td><strong>Charts</strong></td><td>Recharts 2</td><td>Composable SVG, works with Recharts AreaChart gradient fills for P10/P50/P90 bands</td></tr>
+    <tr><td><strong>Deployment</strong></td><td>Docker → GCP Cloud Run + Firebase Hosting</td><td>Serverless, auto-scaling, HTTPS, zero-downtime deployments</td></tr>
+    <tr><td><strong>CI/CD</strong></td><td>GitHub Actions</td><td>Test → build → deploy pipeline on every push to main</td></tr>
+  </table>
+</section>
+
+<!-- 3. Architecture -->
+<section id="architecture">
+  <h2 class="st"><span class="num">3</span> System Architecture</h2>
+
+  <pre>
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              BROWSER (React 18 + Vite)                          │
+│                                                                                 │
+│  LandingPage  LoginPage  RegisterPage                                           │
+│  DashboardPage  UploadPage  QueryPage  SimulatePage  ChartsPage                 │
+│                                                                                 │
+│  shared/auth/supabase.ts  ←── Supabase JS SDK (anon key)                       │
+│  shared/api/client.ts     ←── fetch() wrapper + SSE streamQuery()              │
+└───────────────────┬────────────────────────────────────────────────────────────┘
+                    │ HTTPS  (Bearer JWT on every API request)
+                    ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                       FASTAPI BACKEND  (Cloud Run, port 8080)                   │
+│                                                                                 │
+│  main.py ── CORS ── Global exception handler ── Lifespan (scheduler start/stop) │
+│                                                                                 │
+│  /auth/*       auth/router.py     → Supabase Auth (sign_up, sign_in, MFA)      │
+│  /upload/*     routers/upload.py  → extractors.py → GCS → pgvector             │
+│  /query        routers/query.py   → agents/orchestrator.py  (SSE stream)       │
+│  /simulate     routers/simulate.py → automl/monte_carlo.py                     │
+│  /charts       routers/charts.py  → Supabase simulation_results                │
+│  /founders/*   routers/founders.py → Supabase founders table                  │
+│  /health       main.py            → { status: "ok" }                           │
+│                                                                                 │
+│  auth/middleware.py  ←── verify_jwt Depends() ── on every protected route      │
+│  config.py           ←── pydantic-settings, @lru_cache singleton               │
+└──────┬──────────────────────────┬──────────────────────────┬────────────────────┘
+       │                          │                          │
+       ▼                          ▼                          ▼
+┌──────────────┐     ┌────────────────────────┐    ┌──────────────────┐
+│  GROQ API    │     │  SUPABASE (PostgreSQL)  │    │  GCP CLOUD       │
+│              │     │                        │    │  STORAGE         │
+│ Llama 3.1-8b │     │ founders               │    │                  │
+│ Llama 3.3-70b│     │ document_embeddings    │    │ /uploads/        │
+│              │     │   (pgvector)           │    │ {founder_id}/    │
+│ ~500 tok/sec │     │ uploads                │    │ {filename}       │
+│ JSON mode    │     │ simulation_results     │    │                  │
+└──────────────┘     │ news_articles          │    └──────────────────┘
+                     │ ingestion_logs         │
+                     │ auth.users             │
+                     └────────────────────────┘
+                                 ▲
+                     ┌───────────┴───────────┐
+                     │  APSCHEDULER (6h job) │
+                     │  news/scheduler.py    │
+                     │  → NewsCatcher API    │
+                     │  → News-Please scrape │
+                     │  → RAG index          │
+                     └───────────────────────┘
+</pre>
+</section>
+
+<!-- 4. Data Flow -->
+<section id="data-flow">
+  <h2 class="st"><span class="num">4</span> Data Flows</h2>
+
+  <h3>Upload Flow</h3>
+  <div class="flow">
+    <div class="flow-box">Browser drops file</div><div class="flow-arrow">→</div>
+    <div class="flow-box">POST /upload/financials (multipart)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">verify_jwt</div><div class="flow-arrow">→</div>
+    <div class="flow-box">extractors.py (text + metrics)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">GCS upload (raw bytes)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">RAG indexer (chunk → embed → pgvector)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">uploads row in Supabase</div><div class="flow-arrow">→</div>
+    <div class="flow-box">{ upload_id, columns, is_financial, metrics }</div>
+  </div>
+
+  <h3>Query / Agent Flow</h3>
+  <div class="flow">
+    <div class="flow-box">POST /query { question }</div><div class="flow-arrow">→</div>
+    <div class="flow-box">verify_jwt</div><div class="flow-arrow">→</div>
+    <div class="flow-box">RAG retrieval (top-5 chunks)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">SSE: rag_context event</div><div class="flow-arrow">→</div>
+    <div class="flow-box">MarketAgent (Groq)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">SSE: agent_update</div><div class="flow-arrow">→</div>
+    <div class="flow-box">RiskAgent → RevenueAgent → StrategyAgent</div><div class="flow-arrow">→</div>
+    <div class="flow-box">SSE: final</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Browser renders AgentCards</div>
+  </div>
+
+  <h3>Simulation Flow</h3>
+  <div class="flow">
+    <div class="flow-box">POST /simulate { upload_id, months, scenario, cac, burn }</div><div class="flow-arrow">→</div>
+    <div class="flow-box">verify_jwt</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Load initial_metrics from uploads row</div><div class="flow-arrow">→</div>
+    <div class="flow-box">run_monte_carlo (NumPy, 10K paths)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Persist to simulation_results</div><div class="flow-arrow">→</div>
+    <div class="flow-box">{ forecast[], runway_p10/p50/p90 }</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Recharts AreaChart</div>
+  </div>
+
+  <h3>News Ingestion Flow (background, every 6h)</h3>
+  <div class="flow">
+    <div class="flow-box">APScheduler trigger</div><div class="flow-arrow">→</div>
+    <div class="flow-box">NewsCatcher API (6 topics, ~50 articles)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Deduplicate vs. news_articles table</div><div class="flow-arrow">→</div>
+    <div class="flow-box">News-Please scrape (full text)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Insert news_articles row</div><div class="flow-arrow">→</div>
+    <div class="flow-box">RAG index (founder_id = "global")</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Mark indexed=true → log to ingestion_logs</div>
+  </div>
+</section>
+
+<!-- 5. Auth -->
+<section id="auth">
+  <h2 class="st"><span class="num">5</span> Authentication &amp; Security</h2>
+
+  <h3>How JWT Auth Works</h3>
+  <p>Supabase issues HS256 JWTs signed with <code>SUPABASE_JWT_SECRET</code>. The backend validates every token using <code>PyJWT</code> in the <code>verify_jwt</code> FastAPI dependency — injected via <code>Depends(verify_jwt)</code> on every protected route. Token claims include <code>sub</code> (the founder UUID) which scopes all DB queries.</p>
+
+  <table>
+    <tr><th>Endpoint</th><th>Method</th><th>Auth Required</th><th>Description</th></tr>
+    <tr><td>/auth/register</td><td>POST</td><td>No</td><td>Create Supabase user + founders row (service role)</td></tr>
+    <tr><td>/auth/login</td><td>POST</td><td>No</td><td>sign_in_with_password → return JWT tokens</td></tr>
+    <tr><td>/auth/refresh</td><td>POST</td><td>No</td><td>Exchange refresh token for new access token</td></tr>
+    <tr><td>/auth/logout</td><td>POST</td><td>No</td><td>Invalidate session (best-effort)</td></tr>
+    <tr><td>/auth/mfa/enroll</td><td>POST</td><td>Yes</td><td>Begin TOTP enrollment — returns QR code URI</td></tr>
+    <tr><td>/auth/mfa/verify</td><td>POST</td><td>No</td><td>Verify 6-digit TOTP, upgrade session to AAL2</td></tr>
+    <tr><td>/auth/me</td><td>GET</td><td>Yes</td><td>Return current founder profile from JWT claims</td></tr>
+  </table>
+
+  <h3>Key Security Decisions</h3>
+  <ul>
+    <li><strong>Two Supabase clients:</strong> anon key for auth operations (sign_up/sign_in), service role key for backend DB writes that bypass RLS. Service role key never sent to browser.</li>
+    <li><strong>Row Level Security (RLS)</strong> on every table: <code>auth.uid() = founder_id</code>. Even if someone got the anon key, they can only read their own rows.</li>
+    <li><strong>Parameterised queries only</strong> — Supabase Python client uses prepared statements internally. No string concatenation in SQL.</li>
+    <li><strong>No secrets in logs</strong> — error messages never include tokens, keys, or stack traces. Global exception handler returns a generic message.</li>
+    <li><strong>CORS</strong> — restricted to origins in <code>CORS_ORIGINS</code> env var. Never <code>*</code> in production.</li>
+    <li><strong>Input validation</strong> — all request bodies are Pydantic models. Fields have types, ranges, and allowed values enforced before any business logic runs.</li>
+  </ul>
+</section>
+
+<!-- 6. Agent Pipeline -->
+<section id="agents">
+  <h2 class="st"><span class="num">6</span> 4-Agent AI Pipeline</h2>
+
+  <p>Agents run <strong>sequentially</strong>, not in parallel. Each agent reads the previous agent's structured JSON output plus the RAG-retrieved context. This chaining lets each agent reason at a higher level than if it ran independently.</p>
+  <p>The orchestrator runs Groq calls in a <code>ThreadPoolExecutor</code> (Groq's Python client is synchronous/blocking) and wraps each call with <code>asyncio.get_event_loop().run_in_executor()</code> to keep FastAPI's event loop free. Between each agent, an SSE event is yielded so the frontend updates in real time — users see answers appearing agent by agent.</p>
+
+  <h3>Agent Details</h3>
+  <div style="margin:14px 0">
+    <div class="agent-row" style="font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);font-size:.76rem">
+      <div>Agent</div><div>Model</div><div>Output Fields</div><div>Input</div>
+    </div>
+    <div class="agent-row">
+      <div><div class="agent-name">MarketAgent</div><div class="agent-model">llama-3.1-8b-instant</div></div>
+      <div style="color:var(--muted);font-size:.76rem">Fast, cheap, good for structured analysis</div>
+      <div><code style="font-size:.73rem">market_size_assessment</code><br><code style="font-size:.73rem">competitor_threats[]</code><br><code style="font-size:.73rem">opportunity_areas[]</code><br><code style="font-size:.73rem">confidence (0–1)</code></div>
+      <div style="color:var(--muted);font-size:.79rem">Founder question + RAG context</div>
+    </div>
+    <div class="agent-row">
+      <div><div class="agent-name">RiskAgent</div><div class="agent-model">llama-3.1-8b-instant</div></div>
+      <div style="color:var(--muted);font-size:.76rem">Fast, structured risk taxonomy</div>
+      <div><code style="font-size:.73rem">top_risks[]</code><br><code style="font-size:.73rem">risk_score (0–10)</code><br><code style="font-size:.73rem">mitigation_strategies[]</code></div>
+      <div style="color:var(--muted);font-size:.79rem">Question + RAG context + MarketAgent output</div>
+    </div>
+    <div class="agent-row">
+      <div><div class="agent-name">RevenueAgent</div><div class="agent-model">llama-3.1-8b-instant</div></div>
+      <div style="color:var(--muted);font-size:.76rem">Revenue and growth focused</div>
+      <div><code style="font-size:.73rem">revenue_assessment</code><br><code style="font-size:.73rem">growth_drivers[]</code><br><code style="font-size:.73rem">projected_mrr_range</code></div>
+      <div style="color:var(--muted);font-size:.79rem">Question + RAG context + RiskAgent output</div>
+    </div>
+    <div class="agent-row">
+      <div><div class="agent-name">StrategyAgent</div><div class="agent-model">llama-3.3-70b-versatile</div></div>
+      <div style="color:var(--muted);font-size:.76rem">Largest model — synthesises all prior agents</div>
+      <div><code style="font-size:.73rem">strategy</code><br><code style="font-size:.73rem">immediate_actions[]</code><br><code style="font-size:.73rem">kpis_to_watch[]</code></div>
+      <div style="color:var(--muted);font-size:.79rem">Question + all 3 prior agent outputs</div>
+    </div>
+  </div>
+
+  <h3>SSE Event Stream Format</h3>
+  <div class="sse-event"><div class="sse-type">rag_context</div><div style="color:var(--muted);font-size:.8rem">Fired first — contains the retrieved document chunks that agents will read</div></div>
+  <div class="sse-event"><div class="sse-type">agent_update</div><div style="color:var(--muted);font-size:.8rem">Fired after each agent completes — contains agent_name, JSON content, timestamp</div></div>
+  <div class="sse-event"><div class="sse-type">final</div><div style="color:var(--muted);font-size:.8rem">Pipeline complete — contains list of agents_ran and rag_chunks_used count</div></div>
+  <div class="sse-event"><div class="sse-type">error</div><div style="color:var(--muted);font-size:.8rem">Unrecoverable stream error — agent failures are non-fatal and do not emit this</div></div>
+
+  <h3>Failure Resilience</h3>
+  <p>Each agent call is wrapped in <code>try/except</code>. If one agent fails (e.g. Groq timeout), the orchestrator logs the error, emits an <code>agent_update</code> with an error payload, and continues to the next agent. Partial results are better than no results. The <code>final</code> event is always emitted.</p>
+</section>
+
+<!-- 7. RAG -->
+<section id="rag">
+  <h2 class="st"><span class="num">7</span> RAG Pipeline</h2>
+
+  <h3>Why RAG?</h3>
+  <p>Founder financial documents can be hundreds of rows of CSV or dozens of pages of PDF. Sending the entire document to the LLM every query is expensive and slow. RAG retrieves only the 5 most relevant passages for each question, keeping prompts short and responses grounded in actual data.</p>
+
+  <h3>Indexing (called after every upload)</h3>
+  <ol class="steps">
+    <li><div><p class="sl">Text extraction</p><p class="sd">extractors.py converts the raw file bytes to plain text. CSV/Excel → pandas, PDF → pdfminer, DOCX → python-docx, images → pytesseract OCR, plain text → direct read.</p></div></li>
+    <li><div><p class="sl">Chunking</p><p class="sd">indexer.py splits text into overlapping 512-token chunks (with stride so context isn't lost at chunk boundaries).</p></div></li>
+    <li><div><p class="sl">Embedding</p><p class="sd">encoder.py passes each chunk through sentence-transformers (all-MiniLM-L6-v2). Output: 384-dimensional float vector per chunk.</p></div></li>
+    <li><div><p class="sl">Storage</p><p class="sd">Each chunk + vector stored in document_embeddings table with founder_id, source filename, doc_type, and chunk_index.</p></div></li>
+  </ol>
+
+  <h3>Retrieval (called before each query)</h3>
+  <ol class="steps">
+    <li><div><p class="sl">Embed the question</p><p class="sd">Same encoder as indexing time — question gets a 384-dim vector.</p></div></li>
+    <li><div><p class="sl">pgvector cosine search</p><p class="sd">retriever.py runs: SELECT ... ORDER BY embedding &lt;=&gt; query_vector LIMIT 5 — restricted to rows where founder_id matches the authenticated user.</p></div></li>
+    <li><div><p class="sl">Format context</p><p class="sd">pipeline.chunks_to_context() formats chunks as a numbered list: [1] (source, score=0.87): text... This is injected into every agent's system prompt.</p></div></li>
+  </ol>
+
+  <h3>Document Types</h3>
+  <table>
+    <tr><th>doc_type</th><th>Source</th><th>founder_id</th></tr>
+    <tr><td>financial</td><td>Founder's uploaded CSV/PDF</td><td>Specific founder UUID</td></tr>
+    <tr><td>news</td><td>NewsCatcher + News-Please (background job)</td><td>"global" — shared across all founders</td></tr>
+    <tr><td>manual</td><td>Future: founder manually adds text notes</td><td>Specific founder UUID</td></tr>
+  </table>
+</section>
+
+<!-- 8. Monte Carlo -->
+<section id="montecarlo">
+  <h2 class="st"><span class="num">8</span> Monte Carlo Simulation Engine</h2>
+
+  <h3>What It Models</h3>
+  <p>Given a starting MRR, burn rate, and cash balance, the engine simulates 10,000 possible futures. Each path draws a random monthly growth rate and a noisy burn rate, compounds them forward month-by-month, and tracks when (if ever) cumulative burn exceeds available cash.</p>
+
+  <h3>Implementation — Vectorised NumPy</h3>
+  <p>All 10,000 paths run simultaneously using NumPy matrix operations — no Python loop per simulation. Shape: <code>(10000, months_ahead)</code> matrices for growth rates and burn noise. <code>np.cumprod</code> compounds revenue. <code>np.cumsum</code> accumulates burn. <code>np.argmax</code> finds the runway month. Total runtime: ~100–200ms.</p>
+
+  <h3>Scenario Parameters</h3>
+  <table>
+    <tr><th>Scenario</th><th>Monthly growth mean (μ)</th><th>Standard deviation (σ)</th><th>Interpretation</th></tr>
+    <tr><td>Bear</td><td>-1% per month</td><td>±5%</td><td>Slow decline, high volatility</td></tr>
+    <tr><td>Base</td><td>+5% per month</td><td>±4%</td><td>Moderate growth</td></tr>
+    <tr><td>Bull</td><td>+12% per month</td><td>±6%</td><td>Strong growth, high variance</td></tr>
+  </table>
+
+  <h3>CAC & Burn Adjustments</h3>
+  <ul>
+    <li><strong>CAC change:</strong> drags growth mean by <code>cac_change × 0.3</code>. A 20% CAC increase reduces expected monthly growth by 6%.</li>
+    <li><strong>Burn change:</strong> scales the base burn rate linearly before adding Gaussian noise.</li>
+    <li><strong>Burn volatility:</strong> ±8% of monthly burn (Gaussian noise), clipped to 50%–200% of base to prevent unrealistic extremes.</li>
+  </ul>
+
+  <h3>Output Percentiles</h3>
+  <table>
+    <tr><th>Percentile</th><th>Meaning</th><th>Color in chart</th></tr>
+    <tr><td>P10</td><td>Bear case — 90% of simulations do better than this</td><td>#C9623F (dark terracotta)</td></tr>
+    <tr><td>P50</td><td>Median — the most likely single outcome</td><td>#D97757 (terracotta)</td></tr>
+    <tr><td>P90</td><td>Bull case — only 10% of simulations do this well</td><td>#4CAF84 (green)</td></tr>
+  </table>
+
+  <h3>Data Seeding from Uploads</h3>
+  <p>The <code>/simulate</code> router reads <code>initial_metrics</code> from the selected upload row. This JSON snapshot contains <code>revenue</code> (MRR), <code>burn_rate</code>, <code>cac</code>, and <code>ltv</code> extracted by <code>extractors.py</code> from the founder's CSV at upload time. If no upload is selected, the engine falls back to hardcoded conservative defaults.</p>
+</section>
+
+<!-- 9. News Ingestion -->
+<section id="news">
+  <h2 class="st"><span class="num">9</span> News Ingestion Pipeline</h2>
+
+  <h3>Components</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="tag">NewsCatcher API</div>
+      <div class="card-title">Article Discovery</div>
+      <p>Searches 6 startup-relevant topics: "startup funding", "SaaS growth", "venture capital", "startup failure", "product market fit", "CAC LTV SaaS". Returns up to 50 article URLs per run.</p>
+    </div>
+    <div class="card">
+      <div class="tag">News-Please</div>
+      <div class="card-title">Full-Text Extraction</div>
+      <p>Scrapes the full article body from each URL (10s timeout). Returns title, text, author, publish date. Articles with no maintext are skipped.</p>
+    </div>
+    <div class="card">
+      <div class="tag">APScheduler</div>
+      <div class="card-title">Background Scheduler</div>
+      <p>Runs ingest_news_batch every 6 hours in a background thread. Started in the FastAPI lifespan on app startup. Disabled if NEWSCATCHER_API_KEY is not set.</p>
+    </div>
+    <div class="card">
+      <div class="tag">Deduplication</div>
+      <div class="card-title">URL-Based Dedup</div>
+      <p>Before scraping, checks if the article URL already exists in news_articles. Skips duplicates — prevents re-indexing the same article across runs.</p>
+    </div>
+  </div>
+
+  <h3>Ingestion Log</h3>
+  <p>Every run writes to <code>ingestion_logs</code>: ingested count, skipped duplicates, error count, duration in seconds. Useful for monitoring the health of the news pipeline.</p>
+</section>
+
+<!-- 10. Storage -->
+<section id="storage">
+  <h2 class="st"><span class="num">10</span> Storage Layer</h2>
+
+  <h3>supabase_client.py — Singleton Pattern</h3>
+  <p><code>get_supabase_client()</code> returns a cached Supabase client using the <strong>service role key</strong>. This client bypasses RLS and is only used server-side. Called via <code>Depends(get_supabase_client)</code> in routers or directly in background jobs. The connection is warmed at startup in the lifespan context manager.</p>
+
+  <h3>gcs_client.py — GCP Cloud Storage</h3>
+  <p>Raw uploaded files are stored to <code>gs://{GCS_BUCKET_NAME}/uploads/{founder_id}/{filename}</code>. The GCS path is stored in the <code>uploads</code> table. In local dev without GCP credentials, the upload still processes — GCS storage is skipped with a warning log.</p>
+
+  <h3>extractors.py — Multi-Format Text Extraction</h3>
+  <table>
+    <tr><th>File Type</th><th>Library</th><th>Financial Column Detection</th></tr>
+    <tr><td>CSV / Excel</td><td>pandas</td><td>Yes — detects revenue, burn_rate, cac, ltv, mrr, arr, growth_rate by header name matching</td></tr>
+    <tr><td>PDF</td><td>pdfminer.six</td><td>No — full text extraction only</td></tr>
+    <tr><td>DOCX</td><td>python-docx</td><td>No — paragraph text extraction</td></tr>
+    <tr><td>Images (JPG, PNG, WEBP)</td><td>pytesseract (Tesseract OCR)</td><td>No — OCR text only</td></tr>
+    <tr><td>Plain text</td><td>direct read (UTF-8)</td><td>No</td></tr>
+  </table>
+  <p>For CSV/Excel with financial columns, <code>extractors.py</code> produces an <code>initial_metrics</code> JSON object — a summary of the first detected values for each metric. This seeds the Monte Carlo simulation.</p>
+</section>
+
+<!-- 11. API Reference -->
+<section id="api">
+  <h2 class="st"><span class="num">11</span> API Reference</h2>
+
+  <h3>Response Envelope</h3>
+  <pre>// Success
+{ "success": true, "data": { ... }, "meta": { "total": 0, "page": 1 } }
+
+// Error
+{ "success": false, "error": { "code": "AUTH_LOGIN_001", "message": "Invalid credentials" }, "requestId": "req_abc" }</pre>
+
+  <h3>All Endpoints</h3>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+    <tr><td>GET</td><td>/health</td><td>No</td><td>Liveness probe — returns status, version, environment</td></tr>
+    <tr><td>POST</td><td>/auth/register</td><td>No</td><td>Create account → returns JWT tokens + founder profile</td></tr>
+    <tr><td>POST</td><td>/auth/login</td><td>No</td><td>Sign in → returns JWT tokens + founder profile</td></tr>
+    <tr><td>POST</td><td>/auth/refresh</td><td>No</td><td>Exchange refresh token → new access token</td></tr>
+    <tr><td>POST</td><td>/auth/logout</td><td>No</td><td>Invalidate session</td></tr>
+    <tr><td>POST</td><td>/auth/mfa/enroll</td><td>Yes</td><td>Begin TOTP enrollment → returns QR code URI</td></tr>
+    <tr><td>POST</td><td>/auth/mfa/verify</td><td>No</td><td>Verify 6-digit code → AAL2 session</td></tr>
+    <tr><td>GET</td><td>/auth/me</td><td>Yes</td><td>Current founder profile</td></tr>
+    <tr><td>POST</td><td>/upload/financials</td><td>Yes</td><td>multipart/form-data upload → extract → GCS → RAG → DB</td></tr>
+    <tr><td>POST</td><td>/query</td><td>Yes</td><td>SSE stream of 4-agent analysis</td></tr>
+    <tr><td>POST</td><td>/simulate</td><td>Yes</td><td>Monte Carlo → P10/P50/P90 forecast + runway</td></tr>
+    <tr><td>GET</td><td>/charts</td><td>Yes</td><td>List past simulation results for this founder</td></tr>
+    <tr><td>GET</td><td>/founders/me</td><td>Yes</td><td>Founder profile</td></tr>
+    <tr><td>PATCH</td><td>/founders/me</td><td>Yes</td><td>Update full_name or company_name</td></tr>
+  </table>
+
+  <h3>Error Codes</h3>
+  <table>
+    <tr><th>Code</th><th>HTTP</th><th>Meaning</th></tr>
+    <tr><td>AUTH_LOGIN_001</td><td>400 / 401</td><td>Invalid credentials or registration failed</td></tr>
+    <tr><td>AUTH_TOKEN_001</td><td>401</td><td>Token expired or invalid</td></tr>
+    <tr><td>AUTH_TOKEN_002</td><td>401</td><td>MFA code invalid or enrollment failed</td></tr>
+    <tr><td>INTERNAL_ERROR</td><td>500</td><td>Unhandled exception — check server logs</td></tr>
+  </table>
+</section>
+
+<!-- 12. Database -->
+<section id="database">
+  <h2 class="st"><span class="num">12</span> Database Schema</h2>
+  <p>All tables are in the <code>public</code> schema in Supabase PostgreSQL 15. RLS enabled on every table. Backend uses service role key (bypasses RLS). Frontend uses anon key + RLS policies that enforce <code>auth.uid() = founder_id</code>.</p>
+
+  <h3>Migration Order</h3>
+  <pre>001_create_founders.sql              founders table (links to auth.users)
+002_create_document_embeddings.sql   pgvector table for RAG chunks
+003_create_news_tables.sql           news_articles + ingestion_logs
+004_create_uploads.sql               file upload metadata
+004b_add_metrics_column.sql          adds initial_metrics JSONB column to uploads
+005_create_simulation_results.sql    Monte Carlo output persistence</pre>
+
+  <h3>Table Schemas</h3>
+
+  <pre>-- founders (001)
+id           UUID  PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
+email        TEXT  NOT NULL UNIQUE
+full_name    TEXT
+company_name TEXT
+created_at   TIMESTAMPTZ DEFAULT NOW()
+updated_at   TIMESTAMPTZ DEFAULT NOW()  -- auto-updated by trigger
+
+RLS: SELECT / UPDATE where auth.uid() = id
+     INSERT handled by service_role only</pre>
+
+  <pre>-- document_embeddings (002)
+id           UUID        PRIMARY KEY DEFAULT gen_random_uuid()
+founder_id   UUID        REFERENCES auth.users(id) ON DELETE CASCADE
+source       TEXT        -- filename shown in RAG citations
+doc_type     TEXT        -- 'financial' | 'news' | 'manual'
+chunk_index  INT
+text         TEXT
+embedding    vector(384) -- pgvector, cosine distance search
+created_at   TIMESTAMPTZ DEFAULT NOW()
+
+INDEX: ivfflat on embedding for fast approximate nearest-neighbour</pre>
+
+  <pre>-- news_articles (003)
+id             UUID    PRIMARY KEY
+url            TEXT    UNIQUE  -- deduplication key
+title          TEXT
+author         TEXT
+published_date TEXT
+source         TEXT
+full_text      TEXT
+topics         TEXT[]  -- search keywords that found this article
+indexed        BOOLEAN DEFAULT false
+
+-- ingestion_logs (003)
+id               UUID    PRIMARY KEY
+ingested_count   INT
+skipped_count    INT
+error_count      INT
+duration_seconds NUMERIC
+created_at       TIMESTAMPTZ</pre>
+
+  <pre>-- uploads (004 + 004b)
+id               UUID    PRIMARY KEY DEFAULT gen_random_uuid()
+founder_id       UUID    REFERENCES auth.users(id) ON DELETE CASCADE
+filename         TEXT
+file_type        TEXT    -- 'csv' | 'excel' | 'pdf' | 'docx' | 'image' | 'txt'
+gcs_path         TEXT    -- gs://bucket/path
+row_count        INT
+columns          TEXT[]  -- detected column names
+is_financial     BOOLEAN -- true if financial columns were detected
+initial_metrics  JSONB   -- { revenue, burn_rate, cac, ltv, ... }
+created_at       TIMESTAMPTZ
+
+RLS: SELECT where auth.uid() = founder_id</pre>
+
+  <pre>-- simulation_results (005)
+id               UUID    PRIMARY KEY DEFAULT gen_random_uuid()
+founder_id       UUID    REFERENCES auth.users(id) ON DELETE CASCADE
+upload_id        UUID    REFERENCES uploads(id) ON DELETE SET NULL
+months_ahead     INT
+growth_scenario  TEXT    CHECK IN ('bear', 'base', 'bull')
+forecast         JSONB   -- [{ month, p10, p50, p90 }, ...]
+runway_p10       NUMERIC(10,2)
+runway_p50       NUMERIC(10,2)
+runway_p90       NUMERIC(10,2)
+created_at       TIMESTAMPTZ
+
+INDEX: founder_id, upload_id, created_at DESC
+RLS: SELECT where auth.uid() = founder_id</pre>
+</section>
+
+<!-- 13. Frontend -->
+<section id="frontend">
+  <h2 class="st"><span class="num">13</span> Frontend Architecture</h2>
+
+  <h3>Route Structure</h3>
+  <pre>/ (public)             LandingPage
+/auth/login            LoginPage
+/auth/register         RegisterPage
+
+Protected (requires Supabase session):
+  /dashboard           DashboardPage
+  /upload              UploadPage
+  /query               QueryPage
+  /simulate            SimulatePage
+  /charts              ChartsPage
+
+* → redirect to /</pre>
+
+  <h3>Shared Modules</h3>
+  <table>
+    <tr><th>File</th><th>What it does</th></tr>
+    <tr><td>shared/auth/supabase.ts</td><td>Creates the Supabase browser client with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. Exported as singleton.</td></tr>
+    <tr><td>shared/api/client.ts</td><td>Typed fetch wrapper. <code>api.get()</code>, <code>api.post()</code>, <code>api.upload()</code> (multipart). <code>streamQuery()</code> opens SSE fetch stream, parses event: / data: lines, calls callback per event.</td></tr>
+    <tr><td>shared/types.ts</td><td>TypeScript interfaces: Upload, SimulationResult, ForecastMonth, FounderProfile.</td></tr>
+    <tr><td>components/ProtectedRoute.tsx</td><td>Calls supabase.auth.getSession(). If null: Navigate to /auth/login. Otherwise: renders Outlet.</td></tr>
+    <tr><td>components/Layout.tsx</td><td>Fixed sidebar with navigation links. Active link highlighted with terracotta. Outlet renders the active page.</td></tr>
+    <tr><td>components/Spinner.tsx</td><td>Animated SVG spinner, size prop.</td></tr>
+  </table>
+
+  <h3>QueryPage — SSE Streaming</h3>
+  <p>The QueryPage uses <code>streamQuery()</code> which calls <code>fetch()</code> with <code>{ method: "POST", body: JSON, headers: { Authorization: Bearer ... } }</code> and reads the response body as a <code>ReadableStream</code>. Each <code>event:</code> / <code>data:</code> pair is parsed and the callback is invoked. This is SSE without <code>EventSource</code> (which doesn't support POST requests). An <code>AbortController</code> is used to cancel the stream if the user navigates away.</p>
+
+  <h3>SimulatePage — Recharts AreaChart</h3>
+  <p>Three <code>&lt;Area&gt;</code> series (P10, P50, P90) with <code>linearGradient</code> fills defined in SVG <code>&lt;defs&gt;</code>. P10 gets dark terracotta fill, P50 gets main terracotta fill, P90 gets green fill. Custom <code>TooltipContent</code> component formats values as $K or $M.</p>
+</section>
+
+<!-- 14. Design System -->
+<section id="design">
+  <h2 class="st"><span class="num">14</span> Design System</h2>
+  <p>Claude-inspired dark theme. Black base, warm terracotta accent. All tokens are Tailwind arbitrary values used consistently — no random colors.</p>
+
+  <table>
+    <tr><th>Token</th><th>Value</th><th>Usage</th></tr>
+    <tr><td>bg-base</td><td>#000000</td><td>Page background</td></tr>
+    <tr><td>bg-surface</td><td>#0d0c0b</td><td>Cards, panels</td></tr>
+    <tr><td>bg-elevated</td><td>#161412</td><td>Hover states, inputs, dropdowns</td></tr>
+    <tr><td>border</td><td>#1e1c1a</td><td>All card borders</td></tr>
+    <tr><td>border-subtle</td><td>#2a2520</td><td>Dividers</td></tr>
+    <tr><td>text-primary</td><td>#F5F0EB</td><td>Headings, body text</td></tr>
+    <tr><td>text-secondary</td><td>#A89F95</td><td>Secondary labels, descriptions</td></tr>
+    <tr><td>text-muted</td><td>#6B6560</td><td>Placeholders, timestamps, meta</td></tr>
+    <tr><td>accent</td><td>#D97757</td><td>Primary CTA buttons, active states, highlights</td></tr>
+    <tr><td>accent-hover</td><td>#C9623F</td><td>Button hover state</td></tr>
+    <tr><td>success</td><td>#4CAF84</td><td>P90 chart, upload success, positive metrics</td></tr>
+    <tr><td>warning</td><td>#E8A838</td><td>RiskAgent color, warning states</td></tr>
+    <tr><td>error</td><td>#E05454</td><td>Error messages</td></tr>
+  </table>
+
+  <h3>Agent Color Coding</h3>
+  <table>
+    <tr><th>Agent</th><th>Color</th><th>Rationale</th></tr>
+    <tr><td>MarketAgent</td><td>#D97757 (terracotta)</td><td>Primary — most important analysis</td></tr>
+    <tr><td>RiskAgent</td><td>#E8A838 (amber)</td><td>Warning tone — risks are cautions</td></tr>
+    <tr><td>RevenueAgent</td><td>#4CAF84 (green)</td><td>Positive — revenue and growth</td></tr>
+    <tr><td>StrategyAgent</td><td>#7C9EF8 (blue)</td><td>Strategic / calm — final synthesis</td></tr>
+  </table>
+</section>
+
+<!-- 15. Env Vars -->
+<section id="env">
+  <h2 class="st"><span class="num">15</span> Environment Variables</h2>
+
+  <h3>Backend (.env)</h3>
+  <table class="env-table">
+    <tr><th>Variable</th><th>Required</th><th>Where to get it</th></tr>
+    <tr><td>SUPABASE_URL</td><td><span class="status-done">Required</span></td><td>Supabase Dashboard → Settings → API → Project URL</td></tr>
+    <tr><td>SUPABASE_KEY</td><td><span class="status-done">Required</span></td><td>Supabase Dashboard → Settings → API → anon / public key</td></tr>
+    <tr><td>SUPABASE_SERVICE_ROLE_KEY</td><td><span class="status-done">Required</span></td><td>Supabase Dashboard → Settings → API → service_role key</td></tr>
+    <tr><td>SUPABASE_JWT_SECRET</td><td><span class="status-done">Required</span></td><td>Supabase Dashboard → Settings → API → JWT Settings → JWT Secret</td></tr>
+    <tr><td>GROQ_API_KEY</td><td><span class="status-done">Required</span></td><td>console.groq.com/keys — free tier, 10K tok/min</td></tr>
+    <tr><td>GCS_BUCKET_NAME</td><td><span class="status-plan">Production</span></td><td>GCP Console → Cloud Storage → bucket name</td></tr>
+    <tr><td>GCP_PROJECT_ID</td><td><span class="status-plan">Production</span></td><td>GCP Console → project ID</td></tr>
+    <tr><td>NEWSCATCHER_API_KEY</td><td><span class="status-plan">Optional</span></td><td>newscatcherapi.com — scheduler disabled if missing</td></tr>
+    <tr><td>ENVIRONMENT</td><td><span class="status-done">Required</span></td><td>development | production</td></tr>
+    <tr><td>CORS_ORIGINS</td><td><span class="status-done">Required</span></td><td>http://localhost:5173 for local dev</td></tr>
+    <tr><td>LOG_LEVEL</td><td><span class="status-plan">Optional</span></td><td>INFO (default)</td></tr>
+    <tr><td>PORT</td><td><span class="status-plan">Optional</span></td><td>8000 (default, Cloud Run overrides to 8080)</td></tr>
+  </table>
+
+  <h3>Frontend (frontend/.env)</h3>
+  <table class="env-table">
+    <tr><th>Variable</th><th>Required</th><th>Value</th></tr>
+    <tr><td>VITE_SUPABASE_URL</td><td><span class="status-done">Required</span></td><td>Same as backend SUPABASE_URL</td></tr>
+    <tr><td>VITE_SUPABASE_ANON_KEY</td><td><span class="status-done">Required</span></td><td>Same as backend SUPABASE_KEY (anon key — safe for browser)</td></tr>
+    <tr><td>VITE_API_URL</td><td><span class="status-done">Required</span></td><td>http://localhost:8000 for local dev</td></tr>
+  </table>
+</section>
+
+<!-- 16. Local Setup -->
+<section id="setup">
+  <h2 class="st"><span class="num">16</span> Local Development Setup</h2>
+
+  <h3>Prerequisites</h3>
+  <ul>
+    <li>Miniconda or Anaconda (Python 3.12 managed by Conda)</li>
+    <li>Node.js 20+</li>
+    <li>A Supabase project — free tier at supabase.com</li>
+    <li>A Groq API key — free tier at console.groq.com/keys</li>
+  </ul>
+
+  <h3>Backend</h3>
+  <pre>conda env create -f environment.yml
+conda activate foundr-ai
+
+# Fill in .env with your Supabase + Groq credentials
+cp .env.example .env
+
+# Run Supabase migrations (Supabase Dashboard → SQL Editor):
+# 001 → 002 → 003 → 004 → 004b → 005
+
+# Start backend
+uvicorn backend.main:app --reload --port 8000</pre>
+
+  <p>Verify: <a href="http://localhost:8000/health" style="color:var(--accent)">http://localhost:8000/health</a> → <code>{"status":"ok"}</code></p>
+  <p>API docs: <a href="http://localhost:8000/docs" style="color:var(--accent)">http://localhost:8000/docs</a></p>
+
+  <h3>Frontend</h3>
+  <pre>cd frontend
+npm install
+npm run dev</pre>
+
+  <p>Open <a href="http://localhost:5173" style="color:var(--accent)">http://localhost:5173</a></p>
+
+  <h3>Tests</h3>
+  <pre>pytest backend/tests/ -v --cov=backend --cov-report=term-missing</pre>
+</section>
+
+<!-- 17. Build Layers -->
+<section id="layers">
+  <h2 class="st"><span class="num">17</span> Build Layer Status</h2>
+  <table>
+    <tr><th>Layer</th><th>Name</th><th>Key Files</th><th>Status</th></tr>
+    <tr><td>0</td><td>Environment Setup</td><td>environment.yml, requirements.txt, .env.example</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>1</td><td>System Design</td><td>system_design.html, DESIGN.md</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>2</td><td>Auth &amp; Security</td><td>backend/auth/router.py, middleware.py, schemas.py</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>3</td><td>Backend API</td><td>backend/main.py, config.py, all routers</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>4</td><td>Agent Orchestration</td><td>backend/agents/orchestrator.py, market/risk/revenue/strategy_agent.py</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>5</td><td>RAG Pipeline</td><td>backend/rag/pipeline.py, indexer.py, encoder.py, retriever.py</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>6</td><td>News Ingestion</td><td>backend/news/ingestion.py, scheduler.py</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>7</td><td>AutoML &amp; Simulation</td><td>backend/automl/monte_carlo.py, routers/simulate.py</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>8</td><td>Data &amp; Storage</td><td>backend/storage/supabase_client.py, gcs_client.py, extractors.py, migrations/</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>9</td><td>Frontend</td><td>frontend/src/** — all pages and shared components</td><td><span class="status-done">✅ Complete</span></td></tr>
+    <tr><td>10</td><td>Deployment &amp; CI/CD</td><td>Dockerfile, docker-compose.yml, .github/workflows/</td><td><span class="status-plan">Planned</span></td></tr>
+  </table>
+</section>
+
+</main>
+
+<script>
+// Progress bar
+window.addEventListener('scroll', () => {
+  const d = document.documentElement;
+  const pct = (d.scrollTop / (d.scrollHeight - d.clientHeight)) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+});
+
+// Active sidebar link
+const links = document.querySelectorAll('#sidebar a');
+const sections = document.querySelectorAll('section[id]');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`#sidebar a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
