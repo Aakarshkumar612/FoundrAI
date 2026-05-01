@@ -196,7 +196,7 @@ async def delete_upload(
     upload_id: str,
     founder: dict = Depends(verify_jwt),
 ) -> None:
-    """Soft-delete an upload by setting its status to 'deleted'."""
+    """Delete an upload completely (DB, RAG embeddings, and Storage)."""
     founder_id: str = founder["sub"]
     sb = get_supabase_client()
     if sb is None:
@@ -205,18 +205,31 @@ async def delete_upload(
             detail={"code": "DB_CONN_001", "message": "Storage unavailable"},
         )
     try:
-        result = (
-            sb.table("uploads")
-            .update({"upload_status": "deleted"})
-            .eq("id", upload_id)
-            .eq("founder_id", founder_id)
-            .execute()
-        )
-        if not result.data:
+        # 1. Fetch the upload to get filename and storage path
+        fetch_result = sb.table("uploads").select("filename, storage_path").eq("id", upload_id).eq("founder_id", founder_id).single().execute()
+        if not fetch_result.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "DB_QUERY_001", "message": "Upload not found"},
             )
+            
+        filename = fetch_result.data.get("filename")
+        storage_path = fetch_result.data.get("storage_path")
+
+        # 2. Delete from document_embeddings (RAG)
+        if filename:
+            sb.table("document_embeddings").delete().eq("founder_id", founder_id).eq("source", filename).execute()
+
+        # 3. Delete from Supabase Storage
+        if storage_path:
+            try:
+                sb.storage.from_("founder-uploads").remove([storage_path])
+            except Exception as e:
+                logger.warning(f"Could not delete file from storage {storage_path}: {e}")
+
+        # 4. Hard delete from uploads table (cascade will handle simulation_results/financial_rows)
+        sb.table("uploads").delete().eq("id", upload_id).eq("founder_id", founder_id).execute()
+
     except HTTPException:
         raise
     except Exception as exc:

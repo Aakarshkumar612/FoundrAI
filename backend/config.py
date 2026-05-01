@@ -24,12 +24,6 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str = ""
 
-    # GCP
-    gcs_bucket_name: str = "foundr-ai-storage"
-    gcp_project_id: str = ""
-    gcp_region: str = "us-central1"
-    gcp_service_account_json_b64: str = ""
-
     # News
     newscatcher_api_key: str = ""
 

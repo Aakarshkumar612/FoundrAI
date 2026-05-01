@@ -127,7 +127,7 @@
     <span class="badge">RAG: <span>pgvector + sentence-transformers</span></span>
     <span class="badge">DB: <span>Supabase PostgreSQL 15</span></span>
     <span class="badge">Frontend: <span>React 18 + Vite + TailwindCSS</span></span>
-    <span class="badge">Deploy: <span>GCP Cloud Run + Firebase Hosting</span></span>
+    <span class="badge">Deploy: <span>Render + Vercel</span></span>
   </div>
 </header>
 
@@ -191,7 +191,7 @@
 │  main.py ── CORS ── Global exception handler ── Lifespan (scheduler start/stop) │
 │                                                                                 │
 │  /auth/*       auth/router.py     → Supabase Auth (sign_up, sign_in, MFA)      │
-│  /upload/*     routers/upload.py  → extractors.py → GCS → pgvector             │
+│  /upload/*     routers/upload.py  → extractors.py → Supabase Storage → pgvector     │
 │  /query        routers/query.py   → agents/orchestrator.py  (SSE stream)       │
 │  /simulate     routers/simulate.py → automl/monte_carlo.py                     │
 │  /charts       routers/charts.py  → Supabase simulation_results                │
@@ -236,7 +236,7 @@
     <div class="flow-box">POST /upload/financials (multipart)</div><div class="flow-arrow">→</div>
     <div class="flow-box">verify_jwt</div><div class="flow-arrow">→</div>
     <div class="flow-box">extractors.py (text + metrics)</div><div class="flow-arrow">→</div>
-    <div class="flow-box">GCS upload (raw bytes)</div><div class="flow-arrow">→</div>
+    <div class="flow-box">Supabase Storage upload (raw bytes)</div><div class="flow-arrow">→</div>
     <div class="flow-box">RAG indexer (chunk → embed → pgvector)</div><div class="flow-arrow">→</div>
     <div class="flow-box">uploads row in Supabase</div><div class="flow-arrow">→</div>
     <div class="flow-box">{ upload_id, columns, is_financial, metrics }</div>

@@ -239,7 +239,15 @@ class TestFullFounderJourney:
         assert results["bear"] < results["base"] < results["bull"]
         print(f"\n✅ /simulate scenarios → bear P50: ${results['bear']:,.0f} | base: ${results['base']:,.0f} | bull: ${results['bull']:,.0f}")
 
-    def test_09_embed_token(self, client):
+    @patch("httpx.AsyncClient.post")
+    def test_09_embed_token(self, mock_post, client):
+        mock_login_resp = MagicMock()
+        mock_login_resp.status_code = 200
+        mock_login_resp.json.return_value = {"access_token": "mock-access-token"}
+        mock_guest_resp = MagicMock()
+        mock_guest_resp.status_code = 200
+        mock_guest_resp.json.return_value = {"token": "mock-guest-token"}
+        mock_post.side_effect = [mock_login_resp, mock_guest_resp]
         r = client.get("/charts/embed-token", headers={"Authorization": f"Bearer {_token()}"})
         assert r.status_code == 200
         data = r.json()

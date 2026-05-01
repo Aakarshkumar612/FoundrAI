@@ -7,6 +7,11 @@ const NAV = [
   { to: "/query",     label: "Ask AI",    icon: "◇" },
   { to: "/simulate",  label: "Simulate",  icon: "∿" },
   { to: "/charts",    label: "Charts",    icon: "▤" },
+  { to: "/news",      label: "News Feed", icon: "📰" },
+  { to: "/history",   label: "History",   icon: "◷" },
+  { to: "/documents", label: "Documents", icon: "📄" },
+  { to: "/profile",   label: "Profile",   icon: "👤" },
+  { to: "/mfa",       label: "Security",  icon: "🔒" },
 ];
 
 export function Layout() {
@@ -20,7 +25,7 @@ export function Layout() {
           <span className="text-base font-bold tracking-tight text-white">FoundrAI</span>
           <p className="text-[11px] text-[#6B6560] mt-0.5 uppercase tracking-wider">AI Advisor</p>
         </div>
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
           {NAV.map(({ to, label, icon }) => (
             <NavLink key={to} to={to}
               className={({ isActive }) =>

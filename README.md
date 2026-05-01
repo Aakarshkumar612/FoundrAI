@@ -25,10 +25,10 @@ FoundrAI gives startup founders a private AI analyst. Upload your financial CSVs
 | Simulation | NumPy vectorised Monte Carlo (10K paths) | Pure-Python, no GPU needed, runs in < 200ms |
 | Auth | Supabase Auth + PyJWT middleware | Managed JWTs, RLS, TOTP MFA out of the box |
 | Database | Supabase PostgreSQL 15 + pgvector extension | One hosted DB with vector search, RLS, and real-time |
-| File Storage | GCP Cloud Storage | Durable raw upload storage, signed URLs |
+| File Storage | Supabase Storage | Durable raw upload storage, bucket-based |
 | Frontend | React 18 + Vite + TailwindCSS + Framer Motion | Fast HMR, component-level animations |
 | Charts | Recharts | Composable SVG charts with custom tooltips |
-| Deployment | Docker → GCP Cloud Run + Firebase Hosting | Serverless, auto-scaling, HTTPS |
+| Deployment | Render (Backend) + Vercel (Frontend) | Automated CI/CD from GitHub |
 | Config | pydantic-settings | Type-validated env vars with `.env` file support |
 
 ---
@@ -70,7 +70,6 @@ FoundrAI/
 │   ├── storage/
 │   │   ├── supabase_client.py          # Singleton Supabase client (service role)
 │   │   ├── supabase_storage.py         # Upload/download helpers for the uploads table
-│   │   ├── gcs_client.py               # GCP Cloud Storage: upload raw files, generate signed URLs
 │   │   └── extractors.py               # CSV/Excel/PDF/image → text + structured metrics extraction
 │   │
 │   ├── routers/
@@ -339,7 +338,7 @@ id               UUID  PK
 founder_id       UUID  → auth.users(id)
 filename         TEXT
 file_type        TEXT
-gcs_path         TEXT
+storage_path    TEXT
 row_count        INT
 columns          TEXT[]
 is_financial     BOOLEAN

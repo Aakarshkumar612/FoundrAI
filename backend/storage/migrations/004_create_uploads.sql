@@ -5,8 +5,7 @@ CREATE TABLE IF NOT EXISTS uploads (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     founder_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     filename        TEXT NOT NULL,
-    gcs_path        TEXT,           -- NULL when GCS is unavailable (dev mode)
-    gcs_uri         TEXT,           -- full gs:// URI
+    storage_path    TEXT,           -- Path in Supabase Storage bucket
     file_type       TEXT NOT NULL DEFAULT 'financial',
     row_count       INTEGER NOT NULL DEFAULT 0,
     columns         TEXT[] NOT NULL DEFAULT '{}',

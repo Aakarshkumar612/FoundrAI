@@ -6,7 +6,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.storage.supabase_client import get_supabase_client, reset_client
-from backend.storage import gcs_client
 
 
 # ── Supabase client factory tests ─────────────────────────────────────────────
@@ -67,69 +66,6 @@ class TestSupabaseClient:
             reset_client()
             get_supabase_client()
         assert mc.call_count == 2
-
-
-# ── GCS client tests (kept — used optionally in future) ───────────────────────
-
-class TestGCSClient:
-    def setup_method(self):
-        gcs_client.reset_client()
-
-    def teardown_method(self):
-        gcs_client.reset_client()
-
-    def _mock_gcs(self):
-        mock_blob = MagicMock()
-        mock_blob.download_as_bytes.return_value = b"csv,data\n1,2\n"
-        mock_bucket = MagicMock()
-        mock_bucket.blob.return_value = mock_blob
-        mock_storage_client = MagicMock()
-        mock_storage_client.bucket.return_value = mock_bucket
-        return mock_storage_client, mock_blob
-
-    def test_upload_returns_none_when_client_unavailable(self):
-        with patch("backend.storage.gcs_client._get_client", return_value=None):
-            result = gcs_client.upload_bytes(b"data", "path/file.csv")
-        assert result is None
-
-    def test_upload_returns_gcs_uri_on_success(self):
-        mock_client, _ = self._mock_gcs()
-        with (
-            patch("backend.storage.gcs_client._get_client", return_value=mock_client),
-            patch("backend.storage.gcs_client.get_settings") as ms,
-        ):
-            ms.return_value.gcs_bucket_name = "my-bucket"
-            result = gcs_client.upload_bytes(b"data", "founders/abc/file.csv")
-        assert result == "gs://my-bucket/founders/abc/file.csv"
-
-    def test_upload_returns_none_on_exception(self):
-        mock_client = MagicMock()
-        mock_client.bucket.side_effect = Exception("Network error")
-        with patch("backend.storage.gcs_client._get_client", return_value=mock_client):
-            result = gcs_client.upload_bytes(b"data", "path/file.csv")
-        assert result is None
-
-    def test_download_returns_none_when_client_unavailable(self):
-        with patch("backend.storage.gcs_client._get_client", return_value=None):
-            result = gcs_client.download_bytes("path/file.csv")
-        assert result is None
-
-    def test_download_returns_bytes_on_success(self):
-        mock_client, _ = self._mock_gcs()
-        with (
-            patch("backend.storage.gcs_client._get_client", return_value=mock_client),
-            patch("backend.storage.gcs_client.get_settings") as ms,
-        ):
-            ms.return_value.gcs_bucket_name = "my-bucket"
-            result = gcs_client.download_bytes("founders/abc/file.csv")
-        assert result == b"csv,data\n1,2\n"
-
-    def test_download_returns_none_on_exception(self):
-        mock_client = MagicMock()
-        mock_client.bucket.side_effect = Exception("Access denied")
-        with patch("backend.storage.gcs_client._get_client", return_value=mock_client):
-            result = gcs_client.download_bytes("path/file.csv")
-        assert result is None
 
 
 # ── Upload endpoint wiring tests ──────────────────────────────────────────────
@@ -397,14 +333,20 @@ class TestFoundersRouter:
         app.dependency_overrides.clear()
         assert resp.status_code == 503
 
-    def test_delete_upload_calls_soft_delete(self):
+    def test_delete_upload_calls_hard_delete(self):
         client, app = self._make_client()
         sb = MagicMock()
-        sb.table.return_value.update.return_value.eq.return_value.eq.return_value\
-            .execute.return_value = MagicMock(data=[{"id": "uid-1"}])
+        # Mock fetch result for single()
+        sb.table.return_value.select.return_value.eq.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data={"filename": "test.csv", "storage_path": "path"})
+        
         with patch("backend.routers.founders.get_supabase_client", return_value=sb):
             resp = client.delete("/founders/uploads/uid-1")
         app.dependency_overrides.clear()
         assert resp.status_code == 204
-        update_payload = sb.table.return_value.update.call_args[0][0]
-        assert update_payload["upload_status"] == "deleted"
+        
+        # Verify document_embeddings delete was called
+        sb.table.assert_any_call("document_embeddings")
+        # Verify uploads delete was called
+        sb.table.assert_any_call("uploads")
+        # Verify storage remove was called
+        sb.storage.from_.return_value.remove.assert_called_once_with(["path"])

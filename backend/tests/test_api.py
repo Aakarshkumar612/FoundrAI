@@ -112,14 +112,15 @@ class TestUpload:
         )
         assert resp.status_code == 401
 
-    def test_upload_wrong_columns_rejected(self, client: TestClient, auth_headers: dict) -> None:
+    def test_upload_wrong_columns_accepted_as_non_financial(self, client: TestClient, auth_headers: dict) -> None:
         resp = client.post(
             "/upload/financials",
             files={"file": ("bad.csv", io.BytesIO(_csv_bytes(valid=False)), "text/csv")},
             headers=auth_headers,
         )
-        assert resp.status_code == 422
-        assert "missing required columns" in resp.json()["detail"]["message"]
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["is_financial"] is False
 
     def test_upload_empty_csv_rejected(self, client: TestClient, auth_headers: dict) -> None:
         resp = client.post(
@@ -130,15 +131,15 @@ class TestUpload:
         assert resp.status_code == 422
 
     def test_upload_oversized_file_rejected(self, client: TestClient, auth_headers: dict) -> None:
-        # 11MB of data — exceeds 10MB limit
-        big_content = b"revenue,burn_rate,headcount,cac,ltv\n" + b"100,50,10,400,2000\n" * 600_000
+        # 51MB of data — exceeds 50MB limit
+        big_content = b"0" * (51 * 1024 * 1024)
         resp = client.post(
             "/upload/financials",
             files={"file": ("big.csv", io.BytesIO(big_content), "text/csv")},
             headers=auth_headers,
         )
         assert resp.status_code == 422
-        assert "10MB" in resp.json()["detail"]["message"]
+        assert "50 MB" in resp.json()["detail"]["message"]
 
     def test_upload_non_csv_rejected(self, client: TestClient, auth_headers: dict) -> None:
         resp = client.post(
@@ -252,7 +253,20 @@ class TestCharts:
         resp = client.get("/charts/embed-token")
         assert resp.status_code == 401
 
-    def test_embed_token_returns_token(self, client: TestClient, auth_headers: dict) -> None:
+    @patch("httpx.AsyncClient.post")
+    def test_embed_token_returns_token(self, mock_post: MagicMock, client: TestClient, auth_headers: dict) -> None:
+        # Mock login response
+        mock_login_resp = MagicMock()
+        mock_login_resp.status_code = 200
+        mock_login_resp.json.return_value = {"access_token": "mock-access-token"}
+        
+        # Mock guest token response
+        mock_guest_resp = MagicMock()
+        mock_guest_resp.status_code = 200
+        mock_guest_resp.json.return_value = {"token": "mock-guest-token"}
+        
+        mock_post.side_effect = [mock_login_resp, mock_guest_resp]
+
         resp = client.get("/charts/embed-token", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
@@ -290,4 +304,5 @@ class TestCORS:
 
     def test_cors_header_present_on_get(self, client: TestClient) -> None:
         resp = client.get("/health", headers={"Origin": "http://localhost:5173"})
+        assert "access-control-allow-origin" in resp.headers
         assert "access-control-allow-origin" in resp.headers

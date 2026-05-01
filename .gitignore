@@ -1,20 +1,12 @@
-# FoundrAI .gitignore
-# Covers: Python, Node/npm, Conda, macOS, Windows, VSCode, JetBrains, Docker, .env
-
-# ── Secrets — NEVER commit these ─────────────────────────────────────────
-.env
-.env.local
-.env.*.local
-*.pem
-*.key
-service-account*.json
-gcp-credentials*.json
-
-# ── Python ────────────────────────────────────────────────────────────────
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -28,144 +20,160 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
-# Virtual environments
-.venv/
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Testing and coverage
-.pytest_cache/
-.coverage
-.coverage.*
+# Unit test / coverage reports
 htmlcov/
 .tox/
 .nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
 coverage.xml
 *.cover
-*.py,cover
-nosetests.xml
-test-results/
-junit.xml
+*.pyo
+.hypothesis/
+.pytest_cache/
+cover/
 
-# Type checking
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the Python version is
+#   controlled by the consumed application. For an application, you might want to keep them.
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#118, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or even
+#   fail to install them on other platforms.
+#Pipfile.lock
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   poetry.lock
+#   pyproject.toml
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm.toml
+#   .pdm-python
+#   .pdm-build/
+
+# PEP 582; used by e.g. github.com/pdm-project/pdm
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+conda/
+environment.yml
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site/
+
+# mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Pyre type checker
 .pyre/
+
+# pytype static type analyzer
 .pytype/
 
-# Jupyter
-.ipynb_checkpoints
-*.ipynb
+# Cython debug symbols
+cython_debug/
 
-# ── Conda ─────────────────────────────────────────────────────────────────
-.conda/
-conda-meta/
-pkgs/
+# PyCharm
+.idea/
 
-# ── Node / npm / Frontend ─────────────────────────────────────────────────
+# VS Code
+.vscode/
+
+# Node.js
 node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-.pnpm-store/
-.npm/
-.yarn/
-.pnp.*
-frontend/dist/
-frontend/.vite/
-frontend/.cache/
+.eslintcache
 
-# ── Docker ────────────────────────────────────────────────────────────────
-.dockerignore
-docker-compose.override.yml
-
-# ── ML artifacts (large binaries — use GCS instead) ──────────────────────
-*.pkl
-*.joblib
-*.h5
-*.hdf5
-*.ckpt
-*.pt
-*.pth
-models/
-checkpoints/
-
-# ── Data (synthetic CSVs are committed; real founder data never is) ───────
-data/uploads/
-data/cache/
-data/news_cache/
-
-# ── Logs ──────────────────────────────────────────────────────────────────
-*.log
-logs/
-*.log.*
-
-# ── macOS ─────────────────────────────────────────────────────────────────
+# OS
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-# ── Windows ───────────────────────────────────────────────────────────────
 Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
 
-# ── VSCode ────────────────────────────────────────────────────────────────
-.vscode/
-!.vscode/extensions.json
-!.vscode/settings.json.example
-*.code-workspace
-.history/
-
-# ── JetBrains ─────────────────────────────────────────────────────────────
-.idea/
-*.iws
-*.iml
-*.ipr
-out/
-.idea_modules/
-
-# ── Pre-commit ────────────────────────────────────────────────────────────
-.pre-commit-config.yaml.bak
-
-# ── Superset ──────────────────────────────────────────────────────────────
-superset_home/
-superset.db
+# Project-specific
+data/synthetic/*.csv
+backend/news/cache/
+*.log
+gcp-credentials*.json
+.claude/

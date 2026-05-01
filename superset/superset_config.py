@@ -7,6 +7,15 @@ SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "CHANGE_ME_IN_PRODUCTION_32CH
 WTF_CSRF_ENABLED = True
 WTF_CSRF_EXEMPT_LIST = ["superset.views.core.log"]
 
+# Enable CORS for the API and embedding
+ENABLE_CORS = True
+CORS_OPTIONS = {
+    "supports_credentials": True,
+    "allow_headers": ["*"],
+    "resources": ["*"],
+    "origins": ["http://localhost:5173", "http://localhost:3000"]
+}
+
 # ── Embedded dashboard support ────────────────────────────────────────────────
 FEATURE_FLAGS = {
     "EMBEDDED_SUPERSET": True,
@@ -22,7 +31,8 @@ TALISMAN_CONFIG = {
             "http://localhost:3000",
             os.environ.get("FRONTEND_URL", "https://app.foundrai.com"),
         ]
-    }
+    },
+    "force_https": False,
 }
 
 # ── Database ──────────────────────────────────────────────────────────────────

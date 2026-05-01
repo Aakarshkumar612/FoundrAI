@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Apache Superset stack for FoundrAI embedded dashboards.
 # Usage:
 #   cp superset/.env.example superset/.env   # fill in secrets

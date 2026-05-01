@@ -47,12 +47,14 @@ class FullArticle:
     source: Optional[str]
 
 
-def fetch_news(
+import httpx
+
+async def fetch_news(
     topics: List[str],
     api_key: str,
     max_articles: int = MAX_ARTICLES_PER_RUN,
 ) -> List[ArticleMeta]:
-    """Query NewsCatcher API for articles matching the given topics.
+    """Query NewsCatcher API for articles matching the given topics via HTTP.
 
     Args:
         topics: List of keyword strings to search.
@@ -62,40 +64,43 @@ def fetch_news(
     Returns:
         List of ArticleMeta objects (url, title, date, source).
     """
-    if NewsCatcherApiClient is None:
-        logger.error("newscatcherapi not installed")
-        return []
-
-    client = NewsCatcherApiClient(x_api_key=api_key)
-    seen_urls: set = set()
     results: List[ArticleMeta] = []
-
+    seen_urls: set = set()
     per_topic = max(1, max_articles // len(topics))
 
-    for topic in topics:
-        if len(results) >= max_articles:
-            break
-        try:
-            resp = client.get_search(
-                q=topic,
-                lang="en",
-                page_size=per_topic,
-                sort_by="date",
-            )
-            articles = (resp or {}).get("articles") or []
-            for a in articles:
-                url = a.get("link") or a.get("url", "")
-                if not url or url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                results.append(ArticleMeta(
-                    url=url,
-                    title=a.get("title", ""),
-                    published_date=str(a.get("published_date", "")),
-                    source=a.get("clean_url") or a.get("rights", ""),
-                ))
-        except Exception as exc:
-            logger.warning("NewsCatcher fetch failed for topic '%s': %s", topic, exc)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for topic in topics:
+            if len(results) >= max_articles:
+                break
+            try:
+                resp = await client.get(
+                    "https://api.newscatcherapi.com/v2/search",
+                    params={
+                        "q": topic,
+                        "lang": "en",
+                        "page_size": per_topic,
+                        "sort_by": "date",
+                    },
+                    headers={"x-api-key": api_key},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    articles = data.get("articles") or []
+                    for a in articles:
+                        url = a.get("link") or a.get("url", "")
+                        if not url or url in seen_urls:
+                            continue
+                        seen_urls.add(url)
+                        results.append(ArticleMeta(
+                            url=url,
+                            title=a.get("title", ""),
+                            published_date=str(a.get("published_date", "")),
+                            source=a.get("clean_url") or a.get("rights", ""),
+                        ))
+                else:
+                    logger.warning("NewsCatcher API error: %d %s", resp.status_code, resp.text)
+            except Exception as exc:
+                logger.warning("NewsCatcher fetch failed for topic '%s': %s", topic, exc)
 
     return results[:max_articles]
 
@@ -129,7 +134,11 @@ def fetch_full_article(url: str) -> Optional[FullArticle]:
         return None
 
 
-def ingest_news_batch(
+# System UUID for global documents (news, market benchmarks)
+GLOBAL_ID = "00000000-0000-0000-0000-000000000000"
+
+
+async def ingest_news_batch(
     topics: List[str],
     api_key: str,
     supabase_client=None,
@@ -149,7 +158,7 @@ def ingest_news_batch(
     start = time.monotonic()
     ingested = skipped = errors = 0
 
-    articles_meta = fetch_news(topics, api_key)
+    articles_meta = await fetch_news(topics, api_key)
     logger.info("Fetched %d article candidates", len(articles_meta))
 
     for meta in articles_meta:
@@ -188,7 +197,7 @@ def ingest_news_batch(
             if rag_pipeline is not None:
                 rag_pipeline.index(
                     content=full.text.encode("utf-8"),
-                    founder_id="global",   # news is shared across all founders
+                    founder_id=None,   # news is global (NULL in DB)
                     doc_type="news",
                     source_filename=full.url,
                 )

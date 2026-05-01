@@ -3,6 +3,7 @@
 import logging
 from typing import Optional
 
+import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
@@ -17,12 +18,13 @@ def _run_ingestion(api_key: str, supabase_client=None, rag_pipeline=None) -> Non
     """Synchronous wrapper called by APScheduler."""
     logger.info("Scheduled news ingestion starting")
     try:
-        result = ingest_news_batch(
+        # Use asyncio.run to call the async ingestion function from a sync thread
+        result = asyncio.run(ingest_news_batch(
             topics=DEFAULT_TOPICS,
             api_key=api_key,
             supabase_client=supabase_client,
             rag_pipeline=rag_pipeline,
-        )
+        ))
         logger.info("Scheduled ingestion result: %s", result)
     except Exception as exc:
         logger.error("Scheduled ingestion failed: %s", exc)
@@ -34,7 +36,7 @@ def start_scheduler(
     rag_pipeline=None,
     interval_hours: int = 4,
 ) -> BackgroundScheduler:
-    """Start the APScheduler AsyncIOScheduler with a 4-hour ingestion job.
+    """Start the APScheduler BackgroundScheduler with a job.
 
     Args:
         api_key: NewsCatcher API key.
@@ -43,7 +45,7 @@ def start_scheduler(
         interval_hours: How often to run ingestion (default 4).
 
     Returns:
-        Running AsyncIOScheduler instance.
+        Running BackgroundScheduler instance.
     """
     global _scheduler
     if _scheduler is not None and _scheduler.running:

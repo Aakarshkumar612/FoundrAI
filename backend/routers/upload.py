@@ -207,7 +207,7 @@ async def upload_financials(
                 "columns": columns or [],
                 "initial_metrics": metrics,
                 "upload_status": "ready",
-                "gcs_path": saved_path,   # reusing column for Supabase Storage path
+                "storage_path": saved_path,
             }).execute()
         except Exception as exc:
             logger.error("DB insert failed for upload_id=%s: %s", upload_id, exc)
