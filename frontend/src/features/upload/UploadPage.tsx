@@ -1,95 +1,143 @@
 import { useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { api } from "@/shared/api/client";
 import { Spinner } from "@/shared/components/Spinner";
 import type { Upload } from "@/shared/types";
-
-const fadeUp = { hidden:{opacity:0,y:16}, visible:{opacity:1,y:0,transition:{duration:0.4,ease:[0.22,1,0.36,1]}} };
+import { 
+  UploadCloud, 
+  FileText, 
+  CheckCircle2, 
+  AlertCircle, 
+  ArrowRight, 
+  ShieldCheck,
+  BrainCircuit,
+  Database
+} from "lucide-react";
+import { Link } from "react-router-dom";
 
 export function UploadPage() {
-  const inputRef                = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [result, setResult]     = useState<Upload | null>(null);
-  const [error, setError]       = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState<Upload | null>(null);
+  const [error, setError] = useState("");
 
-  async function handleFile(file: File) {
-    setResult(null); setError(""); setUploading(true);
-    const form = new FormData();
-    form.append("file", file);
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!file) return;
+    setLoading(true); setError(""); setSuccess(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
     try {
-      setResult(await api.upload<Upload>("/upload/financials", form));
-    } catch (e: any) {
-      setError(e.message);
+      const res = await api.upload<Upload>("/upload/financials", formData);
+      setSuccess(res);
+      setFile(null);
+    } catch (err: any) {
+      setError(err.message || "Upload failed. Verify CSV format.");
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   }
 
   return (
-    <motion.div className="p-8 max-w-2xl" initial="hidden" animate="visible"
-      variants={{ visible:{transition:{staggerChildren:0.08}} }}>
-
-      <motion.div variants={fadeUp} className="mb-8">
-        <h1 className="text-2xl font-bold text-[#F5F0EB]">Upload Document</h1>
-        <p className="mt-1 text-sm text-[#6B6560]">
-          Extracted and indexed into RAG — seeds AI responses and Monte Carlo simulations.
+    <div className="max-w-4xl mx-auto space-y-12 animate-fade-up">
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/5 border border-white/10 text-[#6366f1] mb-2 shadow-lg">
+          <UploadCloud size={32} />
+        </div>
+        <h1 className="text-4xl font-bold text-white tracking-tight">Expand Your <span className="gradient-text">Intelligence</span></h1>
+        <p className="text-[#94a3b8] max-w-lg mx-auto leading-relaxed">
+          Upload your financial CSVs or strategy documents to ground your AI advisor in real business context.
         </p>
-      </motion.div>
+      </div>
 
-      {/* Drop zone */}
-      <motion.div variants={fadeUp}
-        onDragOver={e => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={e => { e.preventDefault(); setDragging(false); const f=e.dataTransfer.files[0]; if(f) handleFile(f); }}
-        onClick={() => inputRef.current?.click()}
-        className={`cursor-pointer rounded-2xl border-2 border-dashed px-8 py-16 text-center transition-all ${
-          dragging ? "border-[#D97757] bg-[#D97757]/5" : "border-[#1e1c1a] hover:border-[#2a2520] hover:bg-[#0d0c0b]"
-        }`}>
-        <input ref={inputRef} type="file" hidden
-          accept=".csv,.xlsx,.xls,.pdf,.docx,.jpg,.jpeg,.png,.webp,.txt"
-          onChange={e => { const f=e.target.files?.[0]; if(f) handleFile(f); }} />
-        <div className="text-4xl mb-3 text-[#6B6560]">⬆</div>
-        <p className="text-sm font-medium text-[#A89F95]">Drop your file here or click to browse</p>
-        <p className="mt-1 text-xs text-[#6B6560]">CSV, Excel, PDF, Word, JPG/PNG, TXT — up to 50 MB</p>
-      </motion.div>
+      <div className="grid md:grid-cols-5 gap-8">
+        {/* Upload Form */}
+        <div className="md:col-span-3">
+          <form onSubmit={handleUpload} className="glass-card p-10 space-y-8 relative overflow-hidden">
+            <div 
+              className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all cursor-pointer group ${
+                file ? 'border-[#6366f1] bg-[#6366f1]/5' : 'border-white/10 hover:border-white/20'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input 
+                type="file" ref={fileInputRef} hidden accept=".csv,.xlsx,.pdf,.docx"
+                onChange={e => setFile(e.target.files?.[0] || null)}
+              />
+              <div className="w-16 h-16 rounded-full bg-white/5 mx-auto flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                {file ? <FileText className="text-[#6366f1]" size={32} /> : <UploadCloud className="text-[#4b5563]" size={32} />}
+              </div>
+              <div className="space-y-2">
+                <p className="text-lg font-bold text-white">{file ? file.name : "Select Document"}</p>
+                <p className="text-xs text-[#94a3b8] uppercase tracking-[0.2em] font-bold">CSV, PDF, Excel, or Word (Max 50MB)</p>
+              </div>
+            </div>
 
-      {uploading && (
-        <motion.div variants={fadeUp} initial="hidden" animate="visible"
-          className="mt-5 flex items-center gap-3 rounded-2xl border border-[#1e1c1a] bg-[#0d0c0b] px-5 py-3">
-          <Spinner size={16} />
-          <p className="text-sm text-[#A89F95]">Extracting text, indexing into RAG, analysing metrics…</p>
-        </motion.div>
-      )}
+            <div className="flex flex-col gap-4">
+              <button 
+                type="submit" disabled={!file || loading}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-[#6366f1] to-[#a855f7] font-bold text-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#6366f1]/20 disabled:opacity-50"
+              >
+                {loading ? <Spinner size={20} /> : <>Commence Indexing <ArrowRight size={18} /></>}
+              </button>
+              
+              {error && (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-red-400/10 border border-red-400/20 text-red-400 text-xs">
+                  <AlertCircle size={16} /> {error}
+                </div>
+              )}
 
-      {result && (
-        <motion.div variants={fadeUp} initial="hidden" animate="visible"
-          className="mt-5 rounded-2xl border border-[#4CAF84]/30 bg-[#4CAF84]/5 p-5">
-          <p className="text-sm font-semibold text-[#4CAF84] mb-3">Upload complete</p>
-          <div className="space-y-1.5 text-xs text-[#A89F95]">
-            <p><span className="text-[#6B6560]">File:</span> {result.filename}</p>
-            <p><span className="text-[#6B6560]">Type:</span> {result.file_type}</p>
-            {result.row_count != null && <p><span className="text-[#6B6560]">Rows:</span> {result.row_count}</p>}
-            {result.columns && result.columns.length > 0 && (
-              <p><span className="text-[#6B6560]">Columns:</span> {result.columns.join(", ")}</p>
-            )}
-            <p>
-              <span className="text-[#6B6560]">Simulation seed:</span>{" "}
-              {result.is_financial
-                ? <span className="text-[#4CAF84]">Financial columns detected — direct seed</span>
-                : <span className="text-[#D97757]">AI-extracted metrics seed</span>}
-            </p>
-            <p className="mt-2 font-mono text-[#6B6560] text-[10px] break-all">ID: {result.upload_id}</p>
+              {success && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-[#3ECF8E]/10 border border-[#3ECF8E]/20 text-[#3ECF8E] text-xs font-bold">
+                    <CheckCircle2 size={16} /> Document successfully indexed into RAG.
+                  </div>
+                  <Link to="/query" className="flex items-center justify-between p-4 rounded-xl glass-card border-[#3ECF8E]/40 group">
+                    <span className="text-xs font-bold text-white">Analyze with AI Advisor</span>
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Guidance */}
+        <div className="md:col-span-2 space-y-6">
+          <div className="glass-card p-6 space-y-4">
+             <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#3ECF8E]">
+                <ShieldCheck size={20} />
+             </div>
+             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Privacy first</h3>
+             <p className="text-xs text-[#94a3b8] leading-relaxed">
+               Your documents are processed locally, encoded into vectors, and stored with unique tenant IDs. No other users can access your knowledge base.
+             </p>
           </div>
-        </motion.div>
-      )}
 
-      {error && (
-        <motion.div variants={fadeUp} initial="hidden" animate="visible"
-          className="mt-5 rounded-2xl border border-red-900/40 bg-red-950/20 px-5 py-3">
-          <p className="text-sm text-red-400">{error}</p>
-        </motion.div>
-      )}
-    </motion.div>
+          <div className="glass-card p-6 space-y-4">
+             <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#8b5cf6]">
+                <BrainCircuit size={20} />
+             </div>
+             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Metric Extraction</h3>
+             <p className="text-xs text-[#94a3b8] leading-relaxed">
+               For financial CSVs, our engine automatically detects columns like Revenue and CAC to feed the Monte Carlo simulation engine.
+             </p>
+          </div>
+
+          <div className="glass-card p-6 space-y-4">
+             <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#06b6d4]">
+                <Database size={20} />
+             </div>
+             <h3 className="text-sm font-bold text-white uppercase tracking-wider">ColBERT Pipeline</h3>
+             <p className="text-xs text-[#94a3b8] leading-relaxed">
+               Using late-interaction retrieval ensures that even complex semantic nuances in your strategy are understood by our agent swarm.
+             </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

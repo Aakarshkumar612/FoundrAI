@@ -1,211 +1,203 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+import { useEffect, useState } from "react";
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Legend 
 } from "recharts";
 import { api } from "@/shared/api/client";
-import { supabase } from "@/shared/auth/supabase";
 import { Spinner } from "@/shared/components/Spinner";
-import type { SimulationResult, ForecastMonth } from "@/shared/types";
-import { useEffect } from "react";
-
-const fadeUp = { hidden:{opacity:0,y:16}, visible:{opacity:1,y:0,transition:{duration:0.4,ease:[0.22,1,0.36,1]}} };
-
-const SCENARIOS = ["bear","base","bull"] as const;
-type Scenario = typeof SCENARIOS[number];
-
-interface ChartRow { month: string; p10: number; p50: number; p90: number; }
-
-function toChartData(forecast: ForecastMonth[]): ChartRow[] {
-  return forecast.map(f => ({
-    month: `M${f.month}`,
-    p10: Math.round(f.p10),
-    p50: Math.round(f.p50),
-    p90: Math.round(f.p90),
-  }));
-}
-
-function fmt(n: number) {
-  if (n >= 1_000_000) return `$${(n/1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n/1_000).toFixed(0)}K`;
-  return `$${n}`;
-}
-
-const TooltipContent = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-xl border border-[#1e1c1a] bg-[#0d0c0b] px-3 py-2 text-xs">
-      <p className="text-[#A89F95] mb-1 font-medium">{label}</p>
-      {payload.map((p: any) => (
-        <p key={p.dataKey} style={{color:p.color}}>{p.name}: {fmt(p.value)}</p>
-      ))}
-    </div>
-  );
-};
+import type { SimulationResult, Upload } from "@/shared/types";
+import { TrendingUp, Settings2, Info, ArrowRight, Zap, FileText } from "lucide-react";
 
 export function SimulatePage() {
-  const [uploads, setUploads]         = useState<{id:string;filename:string}[]>([]);
-  const [uploadId, setUploadId]       = useState("");
-  const [months, setMonths]           = useState(12);
-  const [scenario, setScenario]       = useState<Scenario>("base");
-  const [cacChange, setCacChange]     = useState(0);
-  const [burnChange, setBurnChange]   = useState(0);
-  const [loading, setLoading]         = useState(false);
-  const [result, setResult]           = useState<SimulationResult | null>(null);
-  const [error, setError]             = useState("");
+  const [months, setMonths] = useState(12);
+  const [scenario, setScenario] = useState<"bear" | "base" | "bull">("base");
+  const [result, setResult] = useState<SimulationResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [selectedUpload, setSelectedUpload] = useState<string>("");
 
   useEffect(() => {
-    supabase.from("uploads").select("id,filename").order("created_at",{ascending:false}).limit(20)
-      .then(({data}) => setUploads(data ?? []));
+    api.get<{uploads: any[]}>("/founders/uploads")
+      .then(res => {
+        const docs = res.uploads || [];
+        setUploads(docs);
+        if (docs.length > 0) {
+          setSelectedUpload(docs[0].id);
+        }
+      });
   }, []);
 
-  async function run(e: React.FormEvent) {
-    e.preventDefault();
-    if (!uploadId || loading) return;
-    setError(""); setResult(null); setLoading(true);
+  async function run() {
+    if (!selectedUpload) return;
+    setLoading(true);
     try {
-      const data = await api.post<SimulationResult>("/simulate", {
-        upload_id: uploadId,
+      const res = await api.post<SimulationResult>("/simulate", {
+        upload_id: selectedUpload,
         months_ahead: months,
         growth_scenario: scenario,
-        cac_change_pct: cacChange / 100,
-        burn_change_pct: burnChange / 100,
       });
-      setResult(data);
-    } catch (e: any) {
-      setError(e.message);
+      setResult(res);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <motion.div className="p-8 max-w-4xl" initial="hidden" animate="visible"
-      variants={{ visible:{transition:{staggerChildren:0.07}} }}>
-
-      <motion.div variants={fadeUp} className="mb-8">
-        <h1 className="text-2xl font-bold text-[#F5F0EB]">Monte Carlo Simulation</h1>
-        <p className="mt-1 text-sm text-[#6B6560]">10,000 paths · P10/P50/P90 confidence bands · seeded from your financials</p>
-      </motion.div>
-
-      <motion.form variants={fadeUp} onSubmit={run} className="grid grid-cols-2 gap-4 mb-8">
-        {/* Document */}
-        <div className="col-span-2">
-          <label className="block text-xs text-[#6B6560] mb-1.5 uppercase tracking-wider">Financial Document</label>
-          <select value={uploadId} onChange={e => setUploadId(e.target.value)} required
-            className="w-full rounded-xl border border-[#1e1c1a] bg-[#161412] px-4 py-2.5 text-sm text-[#A89F95] focus:border-[#D97757] focus:outline-none transition-colors">
-            <option value="">Select a document…</option>
-            {uploads.map(u => <option key={u.id} value={u.id}>{u.filename}</option>)}
-          </select>
-        </div>
-
-        {/* Months */}
+    <div className="space-y-8 animate-fade-up">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <label className="block text-xs text-[#6B6560] mb-1.5 uppercase tracking-wider">Forecast Months: {months}</label>
-          <input type="range" min={1} max={24} value={months} onChange={e => setMonths(+e.target.value)}
-            className="w-full accent-[#D97757]" />
-          <div className="flex justify-between text-[10px] text-[#6B6560] mt-0.5"><span>1</span><span>24</span></div>
+          <h1 className="text-3xl font-bold text-white">Monte Carlo <span className="gradient-text">Simulation</span></h1>
+          <p className="text-[#94a3b8] mt-1">Stochastic forecasting across 10,000 future paths</p>
         </div>
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#06b6d4]/10 border border-[#06b6d4]/20 text-[#06b6d4] text-[10px] font-bold uppercase tracking-wider">
+          <Zap size={14} /> Powered by NumPy
+        </div>
+      </div>
 
-        {/* Scenario */}
-        <div>
-          <label className="block text-xs text-[#6B6560] mb-1.5 uppercase tracking-wider">Growth Scenario</label>
-          <div className="flex gap-2">
-            {SCENARIOS.map(s => (
-              <button key={s} type="button" onClick={() => setScenario(s)}
-                className={`flex-1 rounded-xl py-2.5 text-xs font-semibold capitalize transition-colors ${
-                  scenario === s
-                    ? "bg-[#D97757] text-white"
-                    : "border border-[#1e1c1a] bg-[#161412] text-[#A89F95] hover:border-[#2a2520]"
-                }`}>{s}</button>
-            ))}
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Controls */}
+        <div className="glass-card p-8 space-y-8 h-fit">
+          <div className="flex items-center gap-3 mb-2">
+            <Settings2 className="text-[#6366f1]" size={20} />
+            <h2 className="text-lg font-bold text-white">Parameters</h2>
           </div>
-        </div>
 
-        {/* CAC change */}
-        <div>
-          <label className="block text-xs text-[#6B6560] mb-1.5 uppercase tracking-wider">CAC Change: {cacChange > 0 ? "+" : ""}{cacChange}%</label>
-          <input type="range" min={-50} max={100} value={cacChange} onChange={e => setCacChange(+e.target.value)}
-            className="w-full accent-[#D97757]" />
-          <div className="flex justify-between text-[10px] text-[#6B6560] mt-0.5"><span>-50%</span><span>+100%</span></div>
-        </div>
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <label className="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Source Document</label>
+              {uploads.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-white/10 text-center">
+                  <p className="text-[10px] text-[#94a3b8]">No financial documents found.</p>
+                </div>
+              ) : (
+                <select 
+                  value={selectedUpload}
+                  onChange={e => setSelectedUpload(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-[#6366f1] focus:outline-none transition-colors"
+                >
+                  {uploads.map(u => (
+                    <option key={u.id} value={u.id} className="bg-[#0a0a0f]">{u.filename}</option>
+                  ))}
+                </select>
+              )}
+            </div>
 
-        {/* Burn change */}
-        <div>
-          <label className="block text-xs text-[#6B6560] mb-1.5 uppercase tracking-wider">Burn Change: {burnChange > 0 ? "+" : ""}{burnChange}%</label>
-          <input type="range" min={-50} max={100} value={burnChange} onChange={e => setBurnChange(+e.target.value)}
-            className="w-full accent-[#D97757]" />
-          <div className="flex justify-between text-[10px] text-[#6B6560] mt-0.5"><span>-50%</span><span>+100%</span></div>
-        </div>
-
-        <div className="col-span-2">
-          <button type="submit" disabled={loading || !uploadId}
-            className="rounded-xl bg-[#D97757] px-6 py-3 text-sm font-semibold text-white hover:bg-[#C9623F] disabled:opacity-40 transition-colors flex items-center gap-2">
-            {loading ? <><Spinner size={14} /> Running simulation…</> : "Run Simulation"}
-          </button>
-        </div>
-      </motion.form>
-
-      {error && (
-        <motion.div variants={fadeUp} initial="hidden" animate="visible"
-          className="mb-6 rounded-2xl border border-red-900/40 bg-red-950/20 px-5 py-3">
-          <p className="text-sm text-red-400">{error}</p>
-        </motion.div>
-      )}
-
-      {result && (
-        <motion.div variants={fadeUp} initial="hidden" animate="visible" className="space-y-5">
-          {/* Runway stats */}
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Runway P10 (Bear)", value: `${result.runway_p10.toFixed(1)} mo`, color: "#C9623F" },
-              { label: "Runway P50 (Base)", value: `${result.runway_months.toFixed(1)} mo`, color: "#D97757" },
-              { label: "Runway P90 (Bull)", value: `${result.runway_p90.toFixed(1)} mo`, color: "#4CAF84" },
-            ].map(s => (
-              <div key={s.label} className="rounded-2xl border border-[#1e1c1a] bg-[#0d0c0b] p-4">
-                <p className="text-xs text-[#6B6560] mb-1">{s.label}</p>
-                <p className="text-2xl font-bold" style={{color:s.color}}>{s.value}</p>
+            <div>
+              <div className="flex justify-between mb-4">
+                <label className="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Horizon</label>
+                <span className="text-xs font-bold text-[#6366f1]">{months} Months</span>
               </div>
-            ))}
+              <input 
+                type="range" min="3" max="24" value={months} onChange={e => setMonths(parseInt(e.target.value))}
+                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-[#6366f1]"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-xs font-bold uppercase tracking-widest text-[#94a3b8]">Growth Scenario</label>
+              <div className="grid grid-cols-1 gap-2">
+                {(['bear', 'base', 'bull'] as const).map(s => (
+                  <button key={s} onClick={() => setScenario(s)}
+                    className={`px-4 py-3 rounded-xl border text-sm font-bold capitalize transition-all text-left flex justify-between items-center ${
+                      scenario === s 
+                        ? "bg-[#6366f1]/20 border-[#6366f1] text-[#8b5cf6]" 
+                        : "bg-white/5 border-white/5 text-[#94a3b8] hover:bg-white/10"
+                    }`}
+                  >
+                    {s}
+                    {scenario === s && <div className="w-2 h-2 rounded-full bg-[#8b5cf6] shadow-[0_0_8px_#8b5cf6]" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={run} disabled={loading || !selectedUpload}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#6366f1] to-[#a855f7] font-bold text-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#6366f1]/20 disabled:opacity-50 mt-4"
+            >
+              {loading ? <Spinner size={20} /> : <>Execute Simulation <ArrowRight size={18} /></>}
+            </button>
+          </div>
+        </div>
+
+        {/* Chart Area */}
+        <div className="lg:col-span-2 glass-card p-8 min-h-[500px] flex flex-col">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="text-[#6366f1]" size={20} />
+              <h2 className="text-lg font-bold text-white">Revenue Projection</h2>
+            </div>
+            {result && (
+              <div className="flex gap-4">
+                <div className="text-right">
+                  <p className="text-[10px] text-[#94a3b8] uppercase">P50 Runway</p>
+                  <p className="text-sm font-bold text-[#3ECF8E]">{result.runway_months} Mo</p>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Chart */}
-          <div className="rounded-2xl border border-[#1e1c1a] bg-[#0d0c0b] p-5">
-            <p className="text-sm font-semibold text-[#F5F0EB] mb-4">Cash Runway Forecast</p>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={toChartData(result.forecast)} margin={{top:4,right:4,bottom:0,left:0}}>
-                <defs>
-                  <linearGradient id="gP90" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4CAF84" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#4CAF84" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="gP50" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#D97757" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#D97757" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="gP10" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#C9623F" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#C9623F" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e1c1a" />
-                <XAxis dataKey="month" tick={{fill:"#6B6560",fontSize:11}} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={fmt} tick={{fill:"#6B6560",fontSize:11}} axisLine={false} tickLine={false} width={60} />
-                <Tooltip content={<TooltipContent />} />
-                <Legend wrapperStyle={{fontSize:11,color:"#A89F95"}} />
-                <Area type="monotone" dataKey="p90" name="P90 (Bull)" stroke="#4CAF84" strokeWidth={1.5} fill="url(#gP90)" dot={false} />
-                <Area type="monotone" dataKey="p50" name="P50 (Base)" stroke="#D97757" strokeWidth={2} fill="url(#gP50)" dot={false} />
-                <Area type="monotone" dataKey="p10" name="P10 (Bear)" stroke="#C9623F" strokeWidth={1.5} fill="url(#gP10)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="flex-1 w-full min-h-[350px]">
+            {result ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={result.forecast} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorP50" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                  <XAxis dataKey="month" stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `M${v}`} />
+                  <YAxis stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v/1000}k`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0d0d1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                  <Area type="monotone" dataKey="p90" stroke="#8b5cf6" strokeWidth={1} strokeDasharray="5 5" fill="transparent" />
+                  <Area type="monotone" dataKey="p50" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorP50)" />
+                  <Area type="monotone" dataKey="p10" stroke="#4b5563" strokeWidth={1} strokeDasharray="5 5" fill="transparent" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                <TrendingUp className="mb-4" size={48} />
+                <p className="text-sm font-medium">Configure parameters and run to <br />visualize stochastic forecast</p>
+              </div>
+            )}
           </div>
 
-          <p className="text-[11px] text-[#6B6560] text-right">
-            {result.simulation_runs.toLocaleString()} paths · model: {result.model_used}
-            {result.simulation_id && <> · ID: <span className="font-mono">{result.simulation_id.slice(0,8)}</span></>}
-          </p>
-        </motion.div>
-      )}
-    </motion.div>
+          <div className="mt-8 grid grid-cols-3 gap-4 pt-8 border-t border-white/5">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-bold text-[#94a3b8] flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-[#8b5cf6]" /> Bull Case (P90)
+              </span>
+              <p className="text-xs text-white/60">Optimistic growth with lower CAC volatility.</p>
+            </div>
+            <div className="flex flex-col gap-1 text-center">
+              <span className="text-[10px] uppercase font-bold text-[#6366f1] flex items-center justify-center gap-1.5">
+                 Base Case (P50)
+              </span>
+              <p className="text-xs text-white/60">The most probable outcome path.</p>
+            </div>
+            <div className="flex flex-col gap-1 text-right">
+              <span className="text-[10px] uppercase font-bold text-[#4b5563] flex items-center justify-end gap-1.5">
+                Bear Case (P10) <div className="w-2 h-2 rounded-full bg-[#4b5563]" />
+              </span>
+              <p className="text-xs text-white/60">Worst-case scenario with high churn risk.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

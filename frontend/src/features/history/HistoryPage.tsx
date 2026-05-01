@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { supabase } from "@/shared/auth/supabase";
 import { Spinner } from "@/shared/components/Spinner";
-
-const fadeUp = { hidden:{opacity:0,y:16}, visible:{opacity:1,y:0,transition:{duration:0.4,ease:[0.22,1,0.36,1]}} };
+import { History, Calendar, FileText, TrendingUp, Info } from "lucide-react";
 
 interface SimHistory {
   id: string;
@@ -26,51 +24,82 @@ export function HistoryPage() {
           .order("created_at", { ascending: false })
           .limit(30);
         setHistory((data as any) || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
     }
     load();
   }, []);
 
   return (
-    <motion.div className="p-8 max-w-4xl" initial="hidden" animate="visible" variants={{ visible:{transition:{staggerChildren:0.08}} }}>
-      <motion.div variants={fadeUp} className="mb-8">
-        <h1 className="text-2xl font-bold text-[#F5F0EB]">Simulation History</h1>
-        <p className="mt-1 text-sm text-[#6B6560]">Review past Monte Carlo simulation runs.</p>
-      </motion.div>
+    <div className="space-y-8 animate-fade-up">
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#a855f7]">
+            <History size={20} />
+          </div>
+          <h1 className="text-3xl font-bold text-white">Simulation <span className="gradient-text">History</span></h1>
+        </div>
+        <p className="text-[#94a3b8]">Review and compare your past Monte Carlo forecasting runs</p>
+      </div>
 
-      {loading ? <Spinner size={24} /> : (
-        <motion.div variants={fadeUp} className="rounded-2xl border border-[#1e1c1a] bg-[#0d0c0b] overflow-hidden">
-          <table className="w-full text-left text-sm text-[#A89F95]">
-            <thead className="bg-[#161412] text-xs uppercase tracking-wider text-[#6B6560]">
-              <tr>
-                <th className="px-6 py-4 font-medium">Date</th>
-                <th className="px-6 py-4 font-medium">Source Document</th>
-                <th className="px-6 py-4 font-medium">Scenario</th>
-                <th className="px-6 py-4 font-medium">Horizon</th>
-                <th className="px-6 py-4 font-medium text-right">P50 Runway</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1e1c1a]">
-              {history.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-[#6B6560]">No simulations run yet.</td></tr>
-              )}
-              {history.map(h => (
-                <tr key={h.id} className="hover:bg-[#161412]/50 transition-colors">
-                  <td className="px-6 py-4">{new Date(h.created_at).toLocaleString()}</td>
-                  <td className="px-6 py-4 font-medium text-[#F5F0EB]">{h.uploads?.filename || "Default"}</td>
-                  <td className="px-6 py-4 capitalize text-[#D97757]">{h.growth_scenario}</td>
-                  <td className="px-6 py-4">{h.months_ahead} mos</td>
-                  <td className="px-6 py-4 text-right font-bold text-[#F5F0EB]">{h.runway_p50} mos</td>
+      {loading ? <div className="flex justify-center py-20"><Spinner size={32} /></div> : (
+        <div className="glass-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-white/5 bg-white/[0.02]">
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#4b5563]">Timestamp</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#4b5563]">Source Context</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#4b5563]">Strategy</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#4b5563]">Horizon</th>
+                  <th className="px-8 py-5 text-right text-[10px] font-bold uppercase tracking-[0.2em] text-[#4b5563]">P50 Runway</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </motion.div>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {history.length === 0 && (
+                  <tr><td colSpan={5} className="px-8 py-20 text-center text-[#94a3b8] text-sm">No simulations executed yet. Head to the Simulate page to start.</td></tr>
+                )}
+                {history.map(h => (
+                  <tr key={h.id} className="hover:bg-white/[0.01] transition-colors group">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-2 text-sm text-white font-medium">
+                        <Calendar size={14} className="text-[#4b5563]" />
+                        {new Date(h.created_at).toLocaleString()}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-[#6366f1]/40 transition-colors">
+                          <FileText size={14} className="text-[#94a3b8]" />
+                        </div>
+                        <span className="text-sm font-bold text-white">{h.uploads?.filename || "Default Profile"}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest ${
+                        h.growth_scenario === 'bull' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                        h.growth_scenario === 'bear' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                        'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                      }`}>
+                        {h.growth_scenario}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5 text-sm text-[#94a3b8] font-bold tracking-tight">
+                      {h.months_ahead} Months
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 text-sm font-bold text-white">
+                        <TrendingUp size={14} className="text-[#3ECF8E]" />
+                        {h.runway_p50} Mo
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 }

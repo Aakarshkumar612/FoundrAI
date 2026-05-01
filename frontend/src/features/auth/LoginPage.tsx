@@ -1,69 +1,80 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { supabase } from "@/shared/auth/supabase";
-import { Spinner } from "@/shared/components/Spinner";
-
-const fadeUp = { hidden: { opacity:0, y:20 }, visible: { opacity:1, y:0, transition:{ duration:0.5, ease:[0.22,1,0.36,1] } } };
+import { Shield, Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 
 export function LoginPage() {
-  const navigate = useNavigate();
-  const [email, setEmail]       = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault(); setError(""); setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (err) { setError(err.message); return; }
-    navigate("/dashboard");
+  async function login(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true); setError("");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { setError(error.message); setLoading(false); }
+    else navigate("/dashboard");
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-black px-4">
-      <motion.div className="w-full max-w-sm" initial="hidden" animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.08 } } }}>
+    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Background Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#6366f1]/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-[#a855f7]/10 rounded-full blur-[120px] pointer-events-none" />
+      
+      <div className="w-full max-w-md relative z-10 animate-fade-up">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#6366f1] to-[#a855f7] mb-6 shadow-lg shadow-[#6366f1]/20">
+            <Shield className="text-white" size={32} />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+          <p className="text-[#94a3b8]">Sign in to your advisory dashboard</p>
+        </div>
 
-        <motion.div variants={fadeUp} className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-white">FoundrAI</h1>
-          <p className="mt-1 text-sm text-[#6B6560]">Welcome back</p>
-        </motion.div>
-
-        <motion.div variants={fadeUp}
-          className="rounded-2xl border border-[#1e1c1a] bg-[#0d0c0b] p-8">
-          <h2 className="mb-6 text-base font-semibold text-[#F5F0EB]">Sign in</h2>
-          <form onSubmit={submit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#6B6560] uppercase tracking-wider">Email</label>
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-[#1e1c1a] bg-[#161412] px-4 py-2.5 text-sm text-[#F5F0EB] placeholder-[#6B6560] focus:border-[#D97757] focus:outline-none transition-colors"
-                placeholder="you@startup.com" />
+        <form onSubmit={login} className="glass-card p-8 space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#94a3b8] ml-1">Work Email</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#4b5563]" size={18} />
+              <input 
+                type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:border-[#6366f1] focus:outline-none transition-colors"
+                placeholder="name@company.com"
+              />
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#6B6560] uppercase tracking-wider">Password</label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-[#1e1c1a] bg-[#161412] px-4 py-2.5 text-sm text-[#F5F0EB] focus:border-[#D97757] focus:outline-none transition-colors" />
-            </div>
-            {error && (
-              <p className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-2.5 text-xs text-red-400">{error}</p>
-            )}
-            <button type="submit" disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#D97757] py-2.5 text-sm font-semibold text-white hover:bg-[#C9623F] disabled:opacity-50 transition-colors mt-2">
-              {loading ? <Spinner size={14} /> : "Sign in"}
-            </button>
-          </form>
-          <p className="mt-5 text-center text-xs text-[#6B6560]">
-            No account?{" "}
-            <Link to="/auth/register" className="text-[#D97757] hover:text-[#E8906B]">Create one</Link>
-          </p>
-        </motion.div>
+          </div>
 
-        <motion.p variants={fadeUp} className="mt-4 text-center text-xs text-[#6B6560]">
-          <Link to="/" className="hover:text-[#A89F95] transition-colors">← Back to home</Link>
-        </motion.p>
-      </motion.div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#94a3b8] ml-1">Password</label>
+              <a href="#" className="text-xs text-[#6366f1] hover:underline">Forgot?</a>
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#4b5563]" size={18} />
+              <input 
+                type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:border-[#6366f1] focus:outline-none transition-colors"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-400 bg-red-400/10 p-3 rounded-lg border border-red-400/20">{error}</p>}
+
+          <button 
+            disabled={loading}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-[#6366f1] to-[#a855f7] font-bold text-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#6366f1]/20 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <>Sign In <ArrowRight size={20} /></>}
+          </button>
+        </form>
+
+        <p className="mt-8 text-center text-sm text-[#94a3b8]">
+          Don't have an account? <Link to="/auth/register" className="text-[#6366f1] font-semibold hover:underline">Start free trial</Link>
+        </p>
+      </div>
     </div>
   );
 }
