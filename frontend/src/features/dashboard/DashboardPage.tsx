@@ -38,8 +38,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
       const [upRes, simRes] = await Promise.all([
         supabase.from("uploads").select("*").order("created_at", { ascending: false }).limit(5),

@@ -1,5 +1,3 @@
-"""Retriever: encodes a query and fetches top-k chunks from pgvector."""
-
 import logging
 from dataclasses import dataclass
 from typing import List, Optional
@@ -26,20 +24,7 @@ def retrieve(
     top_k: int = 5,
     supabase_client=None,
 ) -> List[DocumentChunk]:
-    """Encode a query and retrieve the top-k most similar chunks from pgvector.
-
-    Uses cosine similarity via pgvector's <=> operator (requires normalized vectors).
-    Falls back to an empty list when supabase_client is None (offline/test mode).
-
-    Args:
-        query: Natural language question from the founder.
-        founder_id: UUID used to filter embeddings by owner (RLS + explicit filter).
-        top_k: Number of chunks to return.
-        supabase_client: Supabase client. If None, returns [].
-
-    Returns:
-        List of DocumentChunk sorted by descending similarity score.
-    """
+    """Encode a query and retrieve the top-k most similar chunks from pgvector."""
     if supabase_client is None:
         logger.debug("retrieve: no DB client — returning empty context")
         return []
@@ -48,8 +33,7 @@ def retrieve(
     query_vec: np.ndarray = encoder.encode([query], normalize_embeddings=True)[0]
 
     try:
-        # pgvector cosine distance: <=> (lower = more similar)
-        # We convert to similarity: 1 - distance
+        # Standardize the RPC call to handle potential missing fields gracefully
         result = supabase_client.rpc(
             "match_document_embeddings",
             {
@@ -65,11 +49,11 @@ def retrieve(
     chunks = []
     for row in (result.data or []):
         chunks.append(DocumentChunk(
-            text=row.get("chunk_text", ""),
-            source=row.get("source_filename", "unknown"),
-            score=float(row.get("similarity", 0.0)),
-            doc_type=row.get("doc_type", "unknown"),
-            chunk_index=int(row.get("chunk_index", 0)),
+            text=row.get("chunk_text") or row.get("text") or "",
+            source=row.get("source_filename") or row.get("source") or "unknown",
+            score=float(row.get("similarity") or 0.0),
+            doc_type=row.get("doc_type") or "unknown",
+            chunk_index=int(row.get("chunk_index") or 0),
         ))
 
     return chunks

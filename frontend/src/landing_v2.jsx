@@ -19,8 +19,8 @@ export const LandingPageV2 = () => {
   useIntersectionObserver('.reveal');
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
         navigate("/dashboard");
       } else {
         setLoading(false);

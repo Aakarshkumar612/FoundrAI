@@ -34,7 +34,8 @@ export function UploadPage() {
       setSuccess(res);
       setFile(null);
     } catch (err: any) {
-      setError(err.message || "Upload failed. Verify CSV format.");
+      console.error("Upload error:", err);
+      setError(err.message || "Indexing failed. Ensure you are signed in.");
     } finally {
       setLoading(false);
     }

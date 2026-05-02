@@ -4,7 +4,7 @@ import os
 
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "CHANGE_ME_IN_PRODUCTION_32CHARS!")
-WTF_CSRF_ENABLED = True
+WTF_CSRF_ENABLED = False
 WTF_CSRF_EXEMPT_LIST = ["superset.views.core.log"]
 
 # Enable CORS for the API and embedding

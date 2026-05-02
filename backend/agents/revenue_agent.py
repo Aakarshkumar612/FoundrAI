@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# DeepSeek-R1 for strong quantitative reasoning
-MODEL = "deepseek-r1-distill-llama-70b"
+# Use Llama 3.3 for strong reasoning
+MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You are a quantitative revenue forecasting analyst for startups.
 Analyze the financial data and risk assessment, then respond with valid JSON only:

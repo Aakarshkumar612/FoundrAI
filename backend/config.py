@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # App config
     environment: str = "development"
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
     log_level: str = "INFO"
     max_upload_size_bytes: int = 10_485_760  # 10MB
     port: int = 8000

@@ -220,32 +220,43 @@ async def mfa_enroll(
     founder: dict = Depends(verify_jwt),
     settings: Settings = Depends(get_settings),
 ) -> MFAEnrollResponse:
-    """Initiate TOTP MFA enrollment. Returns a QR code URI."""
+    """Initiate TOTP MFA enrollment, handling existing factors gracefully."""
     auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing auth header")
-    
     access_token = auth_header.split(" ")[1]
     sb = create_client(settings.supabase_url, settings.supabase_key)
     
     try:
-        # Set the current user's session on the client so Supabase knows WHO is enrolling
         sb.auth.set_session(access_token, "") 
-        enroll_resp = sb.auth.mfa.enroll({"factor_type": "totp", "friendly_name": "FoundrAI"})
         
-        factor = enroll_resp.totp
+        # 1. Check for existing factors first
+        factors = sb.auth.mfa.list_factors()
+        for factor in factors.all:
+            if factor.friendly_name == "FoundrAI":
+                # If unverified, we might need to unenroll it first to re-enroll
+                # But to keep it simple and safe for the user, let's just allow
+                # a fresh enrollment by using a unique timestamped name if needed,
+                # or better, inform the user.
+                # For this emergency fix: we unenroll the existing one to allow a fresh start.
+                if factor.status == "unverified":
+                   sb.auth.mfa.unenroll({"factor_id": factor.id})
+
+        enroll_resp = sb.auth.mfa.enroll({"factor_type": "totp", "friendly_name": "FoundrAI"})
         challenge = sb.auth.mfa.challenge({"factor_id": enroll_resp.id})
 
         return MFAEnrollResponse(
             factor_id=enroll_resp.id,
             challenge_id=challenge.id,
-            totp_uri=factor.uri,
+            totp_uri=enroll_resp.totp.uri,
         )
     except Exception as exc:
         logger.error("MFA enroll failed: %s", str(exc))
+        # If it still fails, tell the user they might already be secure
+        msg = str(exc)
+        if "already exists" in msg:
+            msg = "MFA is already initialized. Please check your authenticator app or verify the existing factor."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "AUTH_TOKEN_002", "message": f"MFA enrollment failed: {str(exc)}"},
+            detail={"code": "AUTH_TOKEN_002", "message": msg},
         )
 
 
