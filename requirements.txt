@@ -25,10 +25,8 @@ ragatouille==0.0.8.post2
 sentence-transformers==2.7.0
 pgvector==0.2.5
 
-# News ingestion
-newscatcherapi==0.7.0
-news-please==1.5.32
-apscheduler==3.10.4
+# Web search (free, no API key — used by query router for live market data)
+duckduckgo-search>=3.9.6
 
 # AutoML & simulation
 flaml[automl]==2.1.2
@@ -37,8 +35,11 @@ scipy==1.13.0
 pandas==2.2.2
 scikit-learn==1.4.2
 
-# Storage
+# Storage & Extraction
 supabase==2.4.3
+pypdf==4.2.0
+python-docx==1.1.2
+Pillow==10.3.0
 
 # HTTP / async utilities
 httpx==0.27.0

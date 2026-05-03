@@ -16,7 +16,7 @@ router = APIRouter(prefix="/simulate", tags=["simulate"])
 
 
 class SimulateRequest(BaseModel):
-    upload_id: str
+    upload_id: Optional[str] = None
     months_ahead: int = Field(default=12, ge=1, le=24)
     cac_change_pct: float = Field(default=0.0, description="CAC change as decimal, e.g. 0.20 = +20%")
     burn_change_pct: float = Field(default=0.0, description="Burn rate change as decimal")

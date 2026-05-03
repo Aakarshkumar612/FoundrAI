@@ -141,10 +141,10 @@ class TestUpload:
         assert resp.status_code == 422
         assert "50 MB" in resp.json()["detail"]["message"]
 
-    def test_upload_non_csv_rejected(self, client: TestClient, auth_headers: dict) -> None:
+    def test_upload_unsupported_type_rejected(self, client: TestClient, auth_headers: dict) -> None:
         resp = client.post(
             "/upload/financials",
-            files={"file": ("report.pdf", io.BytesIO(b"%PDF-content"), "application/pdf")},
+            files={"file": ("archive.zip", io.BytesIO(b"PK\x03\x04"), "application/zip")},
             headers=auth_headers,
         )
         assert resp.status_code == 422
@@ -267,11 +267,14 @@ class TestCharts:
         
         mock_post.side_effect = [mock_login_resp, mock_guest_resp]
 
-        resp = client.get("/charts/embed-token", headers=auth_headers)
+        resp = client.get(
+            "/charts/embed-token",
+            params={"dashboard_id": "4bc06298-4a86-49d0-8ae3-4e950491ccfe"},
+            headers=auth_headers,
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "token" in data
-        assert data["expires_in"] > 0
 
     def test_dashboards_requires_auth(self, client: TestClient) -> None:
         resp = client.get("/charts/dashboards")

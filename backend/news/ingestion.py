@@ -3,6 +3,7 @@
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -95,29 +96,12 @@ async def fetch_news(
                             source=a.get("clean_url") or a.get("rights", ""),
                         ))
                 else:
-                    # ── PUBLIC FALLBACK (If NewsCatcher key is invalid or blocked) ──
-                    logger.warning("NewsCatcher primary failed (%d). Trying public fallback for '%s'...", resp.status_code, topic)
-                    public_resp = await client.get(
-                        f"https://news.google.com/rss/search?q={topic}&hl=en-US&gl=US&ceid=US:en",
-                        timeout=5.0
+                    logger.warning(
+                        "NewsCatcher returned %d for topic '%s' — skipping",
+                        resp.status_code, topic,
                     )
-                    if public_resp.status_code == 200:
-                         # For the demo: provide synthetic but relevant articles if RSS parsing is too slow
-                         results.append(ArticleMeta(
-                             url=f"https://foundrai.com/intel/{topic.replace(' ', '-')}",
-                             title=f"New Strategic Shifts in {topic.title()} detected for 2026",
-                             published_date=datetime.now().isoformat(),
-                             source="Global Intel Feed"
-                         ))
             except Exception as exc:
                 logger.warning("NewsCatcher fetch failed for topic '%s': %s", topic, exc)
-                # Ensure we have at least SOME data for the demo
-                results.append(ArticleMeta(
-                    url=f"https://foundrai.com/intel/{topic.replace(' ', '-')}",
-                    title=f"Market Intelligence: {topic.title()} Outlook",
-                    published_date=datetime.now().isoformat(),
-                    source="FoundrAI Analysis"
-                ))
 
     return results[:max_articles]
 
@@ -210,11 +194,11 @@ async def ingest_news_batch(
                     "indexed": False,
                 }).execute()
 
-            # Index into RAG
+            # Index into RAG using global system ID (shared across all founders)
             if rag_pipeline is not None:
                 rag_pipeline.index(
                     content=full.text.encode("utf-8"),
-                    founder_id=None,   # news is global (NULL in DB)
+                    founder_id=GLOBAL_ID,
                     doc_type="news",
                     source_filename=full.url,
                 )

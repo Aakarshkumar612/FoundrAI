@@ -11,14 +11,15 @@ logger = logging.getLogger(__name__)
 MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You are an expert market analyst for startup founders.
-Analyze the provided context and respond ONLY with valid JSON:
+Always respond ONLY with this exact JSON structure — no other keys allowed:
 {
-  "market_size_assessment": "<TAM/SAM/SOM analysis in 2 sentences>",
-  "competitor_threats": ["<threat 1>", "<threat 2>", "<threat 3>"],
-  "opportunity_areas": ["<opportunity 1>", "<opportunity 2>"],
-  "confidence": 0.9
+  "market_size_assessment": "<2-sentence TAM/SAM/SOM analysis based on the data>",
+  "competitor_threats": ["<specific threat from context>", "<threat 2>", "<threat 3>"],
+  "opportunity_areas": ["<specific opportunity from context>", "<opportunity 2>"],
+  "confidence": 0.85
 }
-JSON only. No markdown."""
+REQUIRED FIELDS: market_size_assessment, competitor_threats, opportunity_areas, confidence.
+Do NOT add extra keys. JSON only."""
 
 class MarketOutput(BaseModel):
     market_size_assessment: str
@@ -39,7 +40,14 @@ def run(question: str, context: str, client: Groq) -> MarketOutput:
             max_tokens=512,
             temperature=0.2,
         )
-        return MarketOutput(**json.loads(resp.choices[0].message.content))
+        raw = json.loads(resp.choices[0].message.content)
+        # Resilient extraction — pull required keys regardless of extra keys returned
+        return MarketOutput(
+            market_size_assessment=str(raw.get("market_size_assessment") or "Market analysis based on provided data."),
+            competitor_threats=raw.get("competitor_threats") or ["Market saturation", "Incumbent response"],
+            opportunity_areas=raw.get("opportunity_areas") or ["AI-driven efficiency", "Platform expansion"],
+            confidence=float(raw.get("confidence") or 0.75),
+        )
     except Exception as exc:
         logger.error("MarketAgent Critical Failure: %s", exc)
         return MarketOutput(

@@ -1,18 +1,17 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { supabase } from "@/shared/auth/supabase";
-import { 
-  LayoutDashboard, 
-  UploadCloud, 
-  MessageSquare, 
-  TrendingUp, 
-  PieChart, 
-  Newspaper, 
-  History, 
-  Files, 
-  UserCircle, 
+import {
+  LayoutDashboard,
+  UploadCloud,
+  MessageSquare,
+  TrendingUp,
+  BarChart2,
+  History,
+  Files,
+  UserCircle,
   ShieldCheck,
   LogOut,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
 
 const NAV = [
@@ -20,8 +19,7 @@ const NAV = [
   { to: "/upload",    label: "Upload",    icon: UploadCloud },
   { to: "/query",     label: "Ask AI",    icon: MessageSquare },
   { to: "/simulate",  label: "Simulate",  icon: TrendingUp },
-  { to: "/charts",    label: "Charts",    icon: PieChart },
-  { to: "/news",      label: "News Feed", icon: Newspaper },
+  { to: "/charts",    label: "Reports",   icon: BarChart2 },
   { to: "/history",   label: "History",   icon: History },
   { to: "/documents", label: "Documents", icon: Files },
   { to: "/profile",   label: "Profile",   icon: UserCircle },

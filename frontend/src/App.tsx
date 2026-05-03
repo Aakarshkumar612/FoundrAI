@@ -11,7 +11,6 @@ import { SimulatePage } from "@/features/simulate/SimulatePage";
 import { ChartsPage } from "@/features/charts/ChartsPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { DocumentsPage } from "@/features/documents/DocumentsPage";
-import { NewsPage } from "@/features/news/NewsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
 
 export function App() {
@@ -30,7 +29,6 @@ export function App() {
           <Route path="/charts"    element={<ChartsPage />} />
           <Route path="/profile"   element={<ProfilePage />} />
           <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/news"      element={<NewsPage />} />
           <Route path="/history"   element={<HistoryPage />} />
           <Route path="/mfa"       element={<MfaPage />} />
         </Route>

@@ -2,15 +2,16 @@ import { useRef, useState } from "react";
 import { api } from "@/shared/api/client";
 import { Spinner } from "@/shared/components/Spinner";
 import type { Upload } from "@/shared/types";
-import { 
-  UploadCloud, 
-  FileText, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowRight, 
+import {
+  UploadCloud,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
   ShieldCheck,
   BrainCircuit,
-  Database
+  Database,
+  BarChart2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -92,12 +93,22 @@ export function UploadPage() {
               )}
 
               {success && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center gap-3 p-4 rounded-xl bg-[#3ECF8E]/10 border border-[#3ECF8E]/20 text-[#3ECF8E] text-xs font-bold">
-                    <CheckCircle2 size={16} /> Document successfully indexed into RAG.
+                    <CheckCircle2 size={16} /> Indexed successfully — {success.row_count ?? 0} rows
                   </div>
                   <Link to="/query" className="flex items-center justify-between p-4 rounded-xl glass-card border-[#3ECF8E]/40 group">
                     <span className="text-xs font-bold text-white">Analyze with AI Advisor</span>
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <Link
+                    to="/charts"
+                    className="flex items-center justify-between p-4 rounded-xl glass-card border-[#6366f1]/40 group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <BarChart2 size={14} className="text-[#6366f1]" />
+                      <span className="text-xs font-bold text-white">Generate Analytics Report</span>
+                    </div>
                     <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </div>

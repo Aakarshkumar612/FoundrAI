@@ -18,18 +18,18 @@ class TestGetDocType:
     def test_excel_is_financial(self):
         assert get_doc_type("report.xlsx") == "financial"
 
-    def test_pdf_is_document(self):
-        assert get_doc_type("deck.pdf") == "document"
+    def test_pdf_is_manual(self):
+        assert get_doc_type("deck.pdf") == "manual"
 
-    def test_docx_is_document(self):
-        assert get_doc_type("plan.docx") == "document"
+    def test_docx_is_manual(self):
+        assert get_doc_type("plan.docx") == "manual"
 
-    def test_image_is_image(self):
-        assert get_doc_type("chart.png") == "image"
-        assert get_doc_type("screenshot.jpg") == "image"
+    def test_image_is_manual(self):
+        assert get_doc_type("chart.png") == "manual"
+        assert get_doc_type("screenshot.jpg") == "manual"
 
-    def test_txt_is_document(self):
-        assert get_doc_type("notes.txt") == "document"
+    def test_txt_is_manual(self):
+        assert get_doc_type("notes.txt") == "manual"
 
 
 # ── CSV extractor ─────────────────────────────────────────────────────────────

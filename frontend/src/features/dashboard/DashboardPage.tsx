@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/shared/auth/supabase";
 import { Spinner } from "@/shared/components/Spinner";
@@ -14,7 +14,8 @@ import {
   Zap
 } from "lucide-react";
 
-const StatCard = ({ label, value, icon: Icon, color, trend }) => (
+interface StatCardProps { label: string; value: string | number; icon: React.ElementType; color: string; trend?: string; }
+const StatCard = ({ label, value, icon: Icon, color, trend }: StatCardProps) => (
   <div className="glass-card p-6 reveal">
     <div className="flex justify-between items-start mb-4">
       <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${color} flex items-center justify-center shadow-lg`}>
@@ -73,8 +74,8 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Total Uploads" value={stats.uploads} icon={FileText} color="from-[#6366f1] to-[#8b5cf6]" trend="+12%" />
         <StatCard label="Simulations Run" value={stats.simulations} icon={TrendingUp} color="from-[#8b5cf6] to-[#a855f7]" trend="+5" />
-        <StatCard label="AI Confidence" value="98.2%" icon={BrainCircuit} color="from-[#a855f7] to-[#d946ef]" />
-        <StatCard label="Compute Power" value="Groq Llama 3" icon={Zap} color="from-[#06b6d4] to-[#3b82f6]" />
+        <StatCard label="AI Confidence" value="98.2%" icon={BrainCircuit} color="from-[#a855f7] to-[#d946ef]" trend="High" />
+        <StatCard label="Compute Power" value="Groq Llama 3" icon={Zap} color="from-[#06b6d4] to-[#3b82f6]" trend="Live" />
       </div>
 
       {/* Main Grid */}

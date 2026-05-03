@@ -60,15 +60,12 @@ def run(question: str, context: str, risk_output: dict, client: Groq) -> Revenue
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_msg},
             ],
-            # DeepSeek-R1 may not support json_object mode on all Groq versions
+            response_format={"type": "json_object"},
             max_tokens=600,
-            temperature=0.3,
+            temperature=0.2,
         )
-        raw = _strip_think_tags(resp.choices[0].message.content or "{}")
-        # Extract JSON block if model wraps it in markdown
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        payload = match.group() if match else raw
-        return RevenueOutput(**json.loads(payload))
+        raw = resp.choices[0].message.content or "{}"
+        return RevenueOutput(**json.loads(raw))
     except Exception as exc:
         logger.warning("RevenueAgent failed: %s — using fallback", str(exc))
         return RevenueOutput(

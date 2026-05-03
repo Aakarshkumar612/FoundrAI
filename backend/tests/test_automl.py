@@ -185,9 +185,12 @@ class TestExtractInitialMetrics:
         metrics = extract_initial_metrics(b"garbage")
         assert metrics["revenue"] == 85_000.0
 
-    def test_returns_defaults_on_missing_columns(self):
+    def test_returns_partial_extraction_on_missing_columns(self):
+        # CSV has revenue/headcount but not burn_rate/cac/ltv — extracts what's available
         metrics = extract_initial_metrics(MISSING_COL_CSV)
-        assert metrics["revenue"] == 85_000.0
+        assert metrics["revenue"] == 86_000.0   # last row value
+        assert metrics["burn_rate"] == 42_000.0  # falls back to default
+        assert "cac" in metrics and "ltv" in metrics
 
     def test_all_required_keys_present(self):
         metrics = extract_initial_metrics(VALID_CSV)

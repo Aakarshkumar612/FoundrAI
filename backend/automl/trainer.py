@@ -4,10 +4,12 @@ import io
 import json
 import logging
 import re
+import math
 from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,6 @@ class TrainResult:
 def _parse_csv(content: bytes):
     """Parse CSV bytes into a pandas DataFrame. Returns None on failure."""
     try:
-        import pandas as pd
         df = pd.read_csv(io.BytesIO(content))
         df.columns = [c.strip().lower() for c in df.columns]
         return df
@@ -37,8 +38,6 @@ def _parse_csv(content: bytes):
 
 def _engineer_features(df):
     """Add derived features used by FLAML. Modifies df in place and returns it."""
-    import pandas as pd
-
     df = df.copy()
     df["month_index"] = range(len(df))
     df["log_cac"] = np.log1p(df["cac"].clip(lower=0))
@@ -52,19 +51,7 @@ def train_revenue_model(
     content: bytes,
     time_budget: int = TIME_BUDGET_SECONDS,
 ) -> Optional[TrainResult]:
-    """Train a FLAML AutoML regression model on financial CSV data.
-
-    Features: month_index, headcount, log_cac, log_ltv, ltv_cac_ratio,
-              burn_coverage, burn_rate.
-    Target: revenue.
-
-    Args:
-        content: Raw CSV bytes (must have REQUIRED_COLUMNS).
-        time_budget: FLAML time budget in seconds.
-
-    Returns:
-        TrainResult with model name and metrics, or None if training fails.
-    """
+    """Train a FLAML AutoML regression model on financial CSV data."""
     try:
         from flaml import AutoML
         from sklearn.metrics import mean_squared_error, r2_score
@@ -131,15 +118,7 @@ def train_revenue_model(
 
 
 def extract_initial_metrics(content: bytes) -> dict:
-    """Extract the latest row's financial metrics from a CSV for use as MC seed.
-
-    Args:
-        content: Raw CSV bytes.
-
-    Returns:
-        Dict with revenue, burn_rate, headcount, cac, ltv (last row values),
-        or defaults if parsing fails.
-    """
+    """Extract the latest row's financial metrics from a CSV for use as MC seed."""
     defaults = {
         "revenue": 85_000.0,
         "burn_rate": 42_000.0,
@@ -147,18 +126,37 @@ def extract_initial_metrics(content: bytes) -> dict:
         "cac": 450.0,
         "ltv": 2100.0,
     }
-    df = _parse_csv(content)
-    if df is None or not REQUIRED_COLUMNS.issubset(set(df.columns)) or len(df) == 0:
-        return defaults
+    try:
+        df = _parse_csv(content)
+        if df is None or df.empty:
+            return defaults
 
-    last = df.iloc[-1]
-    return {
-        "revenue": float(last.get("revenue", defaults["revenue"])),
-        "burn_rate": float(last.get("burn_rate", defaults["burn_rate"])),
-        "headcount": int(last.get("headcount", defaults["headcount"])),
-        "cac": float(last.get("cac", defaults["cac"])),
-        "ltv": float(last.get("ltv", defaults["ltv"])),
-    }
+        # Standardise column names
+        df.columns = [c.strip().lower() for c in df.columns]
+        
+        last = df.iloc[-1]
+        
+        def _f(val, d):
+            try:
+                if pd.isna(val): return d
+                # Clean numeric string if needed
+                if isinstance(val, str):
+                    val = re.sub(r'[^\d.-]', '', val)
+                fval = float(val)
+                return fval if not math.isnan(fval) and not math.isinf(fval) else d
+            except (ValueError, TypeError):
+                return d
+
+        return {
+            "revenue": _f(last.get("revenue"), defaults["revenue"]),
+            "burn_rate": _f(last.get("burn_rate"), defaults["burn_rate"]),
+            "headcount": int(_f(last.get("headcount"), defaults["headcount"])),
+            "cac": _f(last.get("cac"), defaults["cac"]),
+            "ltv": _f(last.get("ltv"), defaults["ltv"]),
+        }
+    except Exception as exc:
+        logger.error("extract_initial_metrics failed: %s", exc)
+        return defaults
 
 
 def extract_metrics_from_excel(content: bytes) -> dict:
@@ -168,7 +166,6 @@ def extract_metrics_from_excel(content: bytes) -> dict:
         "headcount": 12, "cac": 450.0, "ltv": 2100.0,
     }
     try:
-        import pandas as pd
         xl = pd.ExcelFile(io.BytesIO(content), engine="openpyxl")
         for sheet in xl.sheet_names:
             df = xl.parse(sheet)
@@ -188,7 +185,7 @@ def extract_metrics_from_excel(content: bytes) -> dict:
 
 
 def extract_metrics_from_text(text: str, groq_client=None) -> dict:
-    """Use Groq LLM to pull financial metrics from any extracted text (PDF, Word, TXT, image)."""
+    """Use Groq LLM to pull financial metrics from any extracted text."""
     defaults = {
         "revenue": 85_000.0, "burn_rate": 42_000.0,
         "headcount": 12, "cac": 450.0, "ltv": 2100.0,
@@ -208,18 +205,17 @@ def extract_metrics_from_text(text: str, groq_client=None) -> dict:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=200,
             temperature=0.0,
+            response_format={"type": "json_object"}
         )
-        raw = resp.choices[0].message.content or ""
-        match = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
-        if match:
-            parsed = json.loads(match.group())
-            return {
-                "revenue": float(parsed.get("revenue") or defaults["revenue"]),
-                "burn_rate": float(parsed.get("burn_rate") or defaults["burn_rate"]),
-                "headcount": int(parsed.get("headcount") or defaults["headcount"]),
-                "cac": float(parsed.get("cac") or defaults["cac"]),
-                "ltv": float(parsed.get("ltv") or defaults["ltv"]),
-            }
+        raw = resp.choices[0].message.content or "{}"
+        parsed = json.loads(raw)
+        return {
+            "revenue": float(parsed.get("revenue") or defaults["revenue"]),
+            "burn_rate": float(parsed.get("burn_rate") or defaults["burn_rate"]),
+            "headcount": int(parsed.get("headcount") or defaults["headcount"]),
+            "cac": float(parsed.get("cac") or defaults["cac"]),
+            "ltv": float(parsed.get("ltv") or defaults["ltv"]),
+        }
     except Exception as exc:
         logger.error("Groq metric extraction failed: %s", exc)
     return defaults

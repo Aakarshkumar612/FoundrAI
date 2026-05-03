@@ -3,13 +3,15 @@
 import io
 import logging
 import uuid
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, BackgroundTasks
 from pydantic import BaseModel
+from groq import Groq
 
 from backend.auth.middleware import verify_jwt
 from backend.config import Settings, get_settings
@@ -41,23 +43,6 @@ class UploadResponse(BaseModel):
     storage_path: Optional[str] = None
 
 
-def _is_financial_csv(content: bytes) -> bool:
-    try:
-        df = pd.read_csv(io.BytesIO(content), nrows=1)
-        cols = {c.lower().strip() for c in df.columns}
-        return FINANCIAL_COLUMNS.issubset(cols)
-    except Exception:
-        return False
-
-
-def _parse_csv_meta(content: bytes):
-    try:
-        df = pd.read_csv(io.BytesIO(content))
-        return len(df), list(df.columns)
-    except Exception:
-        return None, None
-
-
 def _insert_financial_rows(content: bytes, upload_id: str, founder_id: str, sb) -> None:
     """Persist all rows from a financial CSV into financial_rows for Superset dashboards."""
     if sb is None:
@@ -65,53 +50,145 @@ def _insert_financial_rows(content: bytes, upload_id: str, founder_id: str, sb) 
     try:
         df = pd.read_csv(io.BytesIO(content))
         df.columns = [c.strip().lower() for c in df.columns]
+
+        def _clean_num(val, is_int=False):
+            if pd.isna(val): return 0
+            # Remove currency symbols and commas
+            s = re.sub(r'[^\d.-]', '', str(val))
+            try:
+                fval = float(s)
+                import math
+                if math.isnan(fval) or math.isinf(fval): return 0
+                return int(fval) if is_int else fval
+            except (ValueError, TypeError):
+                return 0
+
         rows = [
             {
                 "upload_id": upload_id,
                 "founder_id": founder_id,
                 "month": str(row.get("month", "")),
-                "revenue": float(row.get("revenue", 0) or 0),
-                "burn_rate": float(row.get("burn_rate", 0) or 0),
-                "headcount": int(row.get("headcount", 0) or 0),
-                "cac": float(row.get("cac", 0) or 0),
-                "ltv": float(row.get("ltv", 0) or 0),
+                "revenue": _clean_num(row.get("revenue")),
+                "burn_rate": _clean_num(row.get("burn_rate")),
+                "headcount": _clean_num(row.get("headcount"), is_int=True),
+                "cac": _clean_num(row.get("cac")),
+                "ltv": _clean_num(row.get("ltv")),
             }
             for _, row in df.iterrows()
         ]
-        sb.table("financial_rows").insert(rows).execute()
+        # Significantly larger chunk size for faster network throughput
+        for i in range(0, len(rows), 1000):
+            sb.table("financial_rows").insert(rows[i:i+1000]).execute()
+        
         logger.info("Inserted %d financial rows for upload_id=%s", len(rows), upload_id)
     except Exception as exc:
         logger.error("financial_rows insert failed for upload_id=%s: %s", upload_id, exc)
 
 
+def _process_upload_background(
+    contents: bytes,
+    filename: str,
+    upload_id: str,
+    founder_id: str,
+    doc_type: str,
+    is_financial: bool,
+    storage_path: str,
+    groq_api_key: Optional[str] = None
+):
+    """Heavy processing task to run in the background (Storage + RAG + Metrics)."""
+    sb = get_supabase_client()
+    if sb is None:
+        logger.error("Background task failed: Supabase client not available")
+        return
+
+    try:
+        # 1. Upload to Supabase Storage first (critical for other paths)
+        upload_file(
+            content=contents,
+            storage_path=storage_path,
+            content_type=get_mime_type(filename),
+            supabase_client=sb,
+        )
+
+        # 2. Text extraction
+        groq_client = None
+        if groq_api_key:
+            try:
+                groq_client = Groq(api_key=groq_api_key)
+            except Exception:
+                pass
+        
+        extracted_text = extract_text(contents, filename, groq_client=groq_client)
+        
+        # 3. Metrics & Metadata (do full parse here in background)
+        metrics = {}
+        row_count = 0
+        columns = []
+        ext = Path(filename).suffix.lower()
+        
+        if ext == ".csv":
+            try:
+                df = pd.read_csv(io.BytesIO(contents))
+                row_count = len(df)
+                columns = list(df.columns)
+                if is_financial:
+                    metrics = extract_initial_metrics(contents)
+                    _insert_financial_rows(contents, upload_id, founder_id, sb)
+            except Exception as e:
+                logger.warning("Background CSV parse failed: %s", e)
+        elif ext in (".xlsx", ".xls"):
+            metrics = extract_metrics_from_excel(contents)
+        else:
+            metrics = extract_metrics_from_text(extracted_text, groq_client)
+
+        if not extracted_text.strip():
+            extracted_text = f"Document: {filename}\nType: {doc_type}\nNo text content found."
+
+        # 4. Update metadata in DB (including final row_count/columns)
+        sb.table("uploads").update({
+            "initial_metrics": metrics,
+            "row_count": row_count,
+            "columns": columns,
+            "upload_status": "ready",
+        }).eq("id", upload_id).execute()
+
+        # 5. RAG indexing
+        rag = RAGPipeline(supabase_client=sb)
+        rag.index(
+            content=extracted_text.encode("utf-8"),
+            founder_id=founder_id,
+            doc_type=doc_type,
+            source_filename=filename,
+        )
+        
+        sb.table("uploads").update(
+            {"upload_status": "indexed"}
+        ).eq("id", upload_id).execute()
+        
+        logger.info("Background processing complete for upload_id=%s", upload_id)
+
+    except Exception as exc:
+        logger.error("Background processing failed for upload_id=%s: %s", upload_id, exc)
+        try:
+            sb.table("uploads").update({"upload_status": "error"}).eq("id", upload_id).execute()
+        except:
+            pass
+
+
 @router.post("/financials", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_financials(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     founder: dict = Depends(verify_jwt),
     settings: Settings = Depends(get_settings),
 ) -> UploadResponse:
-    """Accept any supported file, store raw bytes in Supabase Storage, extract
-    text, and index into RAG.
-
-    Supported: CSV, Excel (.xlsx/.xls), PDF, Word (.docx), images (JPG/PNG/WebP), TXT.
-    Max size: 50 MB. Raw file stored in Supabase Storage bucket 'founder-uploads'.
-
-    CSV files with financial columns are additionally processed for Monte Carlo
-    simulation seeding (metrics stored as JSONB in uploads table).
-
-    Args:
-        file: Multipart file upload.
-        founder: Verified JWT claims.
-        settings: App settings.
-
-    Returns:
-        UploadResponse with upload_id, file type, metadata, and storage path.
+    """Accept any supported file and return immediately. 
+    All processing (Storage upload, RAG, Metrics) happens in background.
     """
     founder_id: str = founder["sub"]
     filename = file.filename or "upload"
     ext = Path(filename).suffix.lower()
 
-    # ── Extension check ───────────────────────────────────────────────────────
     if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -125,8 +202,12 @@ async def upload_financials(
         )
 
     contents = await file.read()
+    if not contents:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "API_INPUT_001", "message": "File is empty"},
+        )
 
-    # ── Size check ────────────────────────────────────────────────────────────
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -136,66 +217,27 @@ async def upload_financials(
             },
         )
 
-    if len(contents) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={"code": "API_INPUT_001", "message": "File is empty"},
-        )
-
-    # ── Classify ──────────────────────────────────────────────────────────────
-    is_financial = ext == ".csv" and _is_financial_csv(contents)
+    # ── Shallow Metadata (Header only) ──────────────────────────────────────
     doc_type = get_doc_type(filename)
-    row_count, columns = (None, None)
-    metrics: dict = {}
+    is_financial = False
+    columns = []
 
     if ext == ".csv":
-        row_count, columns = _parse_csv_meta(contents)
-        if is_financial:
-            metrics = extract_initial_metrics(contents)
-
-    # ── Text extraction ───────────────────────────────────────────────────────
-    groq_client = None
-    try:
-        from groq import Groq
-        groq_client = Groq(api_key=settings.groq_api_key)
-    except Exception:
-        pass
-
-    extracted_text = extract_text(contents, filename, groq_client=groq_client)
-
-    # ── Metrics extraction for non-financial-CSV formats ─────────────────────
-    if not metrics:
-        if ext in (".xlsx", ".xls"):
-            metrics = extract_metrics_from_excel(contents)
-        else:
-            metrics = extract_metrics_from_text(extracted_text, groq_client)
-    if not extracted_text.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "API_INPUT_001",
-                "message": "Could not extract any text from the file",
-            },
-        )
+        try:
+            # Read ONLY the header (nrows=0) — extremely fast
+            df_head = pd.read_csv(io.BytesIO(contents), nrows=0)
+            columns = list(df_head.columns)
+            cols_set = {c.lower().strip() for c in columns}
+            is_financial = FINANCIAL_COLUMNS.issubset(cols_set)
+        except Exception:
+            pass
 
     upload_id = str(uuid.uuid4())
     uploaded_at = datetime.now(timezone.utc).isoformat()
     storage_path = f"founders/{founder_id}/{upload_id}/{filename}"
 
-    # ── Supabase Storage — store raw file ────────────────────────────────────
+    # ── Supabase DB — initial placeholder metadata ──────────────────────────
     sb = get_supabase_client()
-    if is_financial:
-        _insert_financial_rows(contents, upload_id, founder_id, sb)
-    saved_path = upload_file(
-        content=contents,
-        storage_path=storage_path,
-        content_type=get_mime_type(filename),
-        supabase_client=sb,
-    )
-    if saved_path is None:
-        logger.warning("Storage unavailable — raw file not saved for upload_id=%s", upload_id)
-
-    # ── Supabase DB — persist metadata ────────────────────────────────────────
     if sb is not None:
         try:
             sb.table("uploads").insert({
@@ -203,43 +245,40 @@ async def upload_financials(
                 "founder_id": founder_id,
                 "filename": filename,
                 "file_type": doc_type,
-                "row_count": row_count or 0,
-                "columns": columns or [],
-                "initial_metrics": metrics,
-                "upload_status": "ready",
-                "storage_path": saved_path,
+                "row_count": 0, # To be updated in background
+                "columns": columns,
+                "initial_metrics": {},
+                "upload_status": "processing",
+                "storage_path": storage_path,
             }).execute()
+
+            if is_financial:
+                sb.table("founders").update({
+                    "active_upload_id": upload_id
+                }).eq("id", founder_id).execute()
         except Exception as exc:
-            logger.error("DB insert failed for upload_id=%s: %s", upload_id, exc)
+            logger.error("Initial DB insert failed: %s", exc)
 
-    # ── RAG indexing ──────────────────────────────────────────────────────────
-    try:
-        rag = RAGPipeline(supabase_client=sb)
-        rag.index(
-            content=extracted_text.encode("utf-8"),
-            founder_id=founder_id,
-            doc_type=doc_type,
-            source_filename=filename,
-        )
-        if sb is not None:
-            sb.table("uploads").update(
-                {"upload_status": "indexed"}
-            ).eq("id", upload_id).execute()
-    except Exception as exc:
-        logger.error("RAG indexing failed for upload_id=%s: %s", upload_id, exc)
-
-    logger.info(
-        "Upload complete: founder=%s upload_id=%s file=%s size=%.1fMB financial=%s stored=%s",
-        founder_id, upload_id, filename, len(contents) / 1_048_576, is_financial, saved_path is not None,
+    # ── Background Task (Everything else) ────────────────────────────────────
+    background_tasks.add_task(
+        _process_upload_background,
+        contents,
+        filename,
+        upload_id,
+        founder_id,
+        doc_type,
+        is_financial,
+        storage_path,
+        settings.groq_api_key
     )
 
     return UploadResponse(
         upload_id=upload_id,
         filename=filename,
         file_type=doc_type,
-        row_count=row_count,
+        row_count=0, # Client knows it's processing
         columns=columns,
         uploaded_at=uploaded_at,
         is_financial=is_financial,
-        storage_path=saved_path,
+        storage_path=storage_path,
     )

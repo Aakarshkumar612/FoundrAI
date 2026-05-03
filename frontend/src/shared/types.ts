@@ -1,11 +1,13 @@
 export interface Upload {
-  upload_id: string;
+  id: string;
+  upload_id?: string;
   filename: string;
   file_type: string;
   row_count?: number;
   columns?: string[];
-  uploaded_at: string;
-  is_financial: boolean;
+  uploaded_at?: string;
+  created_at?: string;
+  is_financial?: boolean;
   storage_path?: string;
 }
 

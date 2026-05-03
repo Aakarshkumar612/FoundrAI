@@ -25,9 +25,8 @@ def get_doc_type(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     if ext in (".csv", ".xlsx", ".xls"):
         return "financial"
-    if ext in (".jpg", ".jpeg", ".png", ".webp"):
-        return "image"
-    return "document"
+    # Map all other business documents and images to 'manual' to satisfy DB check constraint
+    return "manual"
 
 
 def extract_text(content: bytes, filename: str, groq_client=None) -> str:

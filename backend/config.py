@@ -2,14 +2,18 @@
 
 from functools import lru_cache
 from typing import List
+from pathlib import Path
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Resolve the project root (where .env lives) relative to this file
+ROOT = Path(__file__).resolve().parent.parent
+ENV_FILE = ROOT / ".env"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_FILE) if ENV_FILE.exists() else None,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

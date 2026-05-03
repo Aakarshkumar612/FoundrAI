@@ -11,7 +11,7 @@ load_dotenv()
 from backend.storage.supabase_client import get_supabase_client
 
 async def seed_news():
-    print("🌱 Seeding Global Intelligence Database with Real Links...")
+    print("Seeding Global Intelligence Database with Real Links...")
     sb = get_supabase_client()
     if not sb: return
 
@@ -39,22 +39,39 @@ async def seed_news():
             "full_text": "Autonomous agents that can execute tasks without human oversight are receiving record Q1 funding.",
             "topics": ["ai", "agents", "vc"],
             "published_date": (datetime.now() - timedelta(days=1)).isoformat()
+        },
+        {
+            "title": "Cloud Spending Forecasted to Grow 20% in 2025",
+            "url": "https://www.gartner.com/en/newsroom/press-releases/cloud-spending-2025",
+            "source": "Gartner",
+            "full_text": "Enterprise cloud budgets are shifting toward AI-integrated services, demanding higher ROI from SaaS providers.",
+            "topics": ["cloud", "spending", "saas"],
+            "published_date": (datetime.now() - timedelta(days=2)).isoformat()
+        },
+        {
+            "title": "The Rise of Vertical AI in Healthcare and Logistics",
+            "url": "https://hbr.org/2024/03/vertical-ai-revolution",
+            "source": "HBR",
+            "full_text": "Industry-specific AI models are outperforming general-purpose LLMs in domain-specific tasks.",
+            "topics": ["ai", "vertical", "strategy"],
+            "published_date": (datetime.now() - timedelta(days=3)).isoformat()
         }
     ]
 
     for article in news:
         try:
-            # Check exists
+            # Check exists by URL
             res = sb.table("news_articles").select("id").eq("url", article["url"]).execute()
             if not res.data:
                 sb.table("news_articles").insert(article).execute()
-                print(f"  ✅ Inserted: {article['title']}")
+                print(f"  [+] Inserted: {article['title']}")
             else:
-                print(f"  ⏭️ Skipped (exists): {article['title']}")
+                sb.table("news_articles").update(article).eq("url", article["url"]).execute()
+                print(f"  [~] Updated: {article['title']}")
         except Exception as e:
-            print(f"  ❌ Failed: {article['title']} - {e}")
+            print(f"  [!] Failed: {article['title']} - {e}")
 
-    print("🚀 Real-Link Database seeding complete.")
+    print("Seeding complete.")
 
 if __name__ == "__main__":
     asyncio.run(seed_news())
