@@ -35,10 +35,10 @@ export function UploadPage() {
       const res = await api.upload<Upload>("/upload/financials", formData);
       setSuccess(res);
       setStoredUpload({
-        id: res.upload_id,
+        id: res.upload_id ?? res.id,
         filename: res.filename,
         row_count: res.row_count ?? null,
-        is_financial: res.is_financial,
+        is_financial: res.is_financial ?? false,
       });
       setFile(null);
     } catch (err: any) {
