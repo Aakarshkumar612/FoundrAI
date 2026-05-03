@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Legend 
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
 } from "recharts";
 import { api } from "@/shared/api/client";
 import { Spinner } from "@/shared/components/Spinner";
 import type { SimulationResult, Upload } from "@/shared/types";
 import { TrendingUp, Settings2, Info, ArrowRight, Zap, FileText } from "lucide-react";
+import { getStoredUpload } from "@/shared/utils/activeUpload";
 
 export function SimulatePage() {
   const [months, setMonths] = useState(12);
@@ -23,14 +24,17 @@ export function SimulatePage() {
   const [selectedUpload, setSelectedUpload] = useState<string>("");
 
   useEffect(() => {
+    // Use localStorage first for instant load, then sync with API
+    const stored = getStoredUpload();
+    if (stored) setSelectedUpload(stored.id);
+
     api.get<{uploads: any[]}>("/founders/uploads")
       .then(res => {
         const docs = res.uploads || [];
         setUploads(docs);
-        if (docs.length > 0) {
-          setSelectedUpload(docs[0].id);
-        }
-      });
+        if (!stored && docs.length > 0) setSelectedUpload(docs[0].id);
+      })
+      .catch(() => {});
   }, []);
 
   async function run() {

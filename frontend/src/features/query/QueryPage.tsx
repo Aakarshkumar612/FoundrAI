@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, streamQuery } from "@/shared/api/client";
+import { getStoredUpload, setStoredUpload } from "@/shared/utils/activeUpload";
 import { Spinner } from "@/shared/components/Spinner";
 import {
   Send, Bot, User, Sparkles, Database, ChevronDown, ChevronRight,
@@ -214,11 +215,19 @@ export function QueryPage() {
     }
 
     async function loadActiveUpload() {
+      // Try localStorage first (instant, no network)
+      const stored = getStoredUpload();
+      if (stored) {
+        setActiveUpload({ id: stored.id, filename: stored.filename, row_count: stored.row_count });
+        return;
+      }
+      // Fall back to API
       try {
         const res = await api.get<any>("/founders/uploads?page_size=1");
         const latest = res.uploads?.[0];
         if (latest && latest.upload_status !== "deleted") {
           setActiveUpload({ id: latest.id, filename: latest.filename, row_count: latest.row_count });
+          setStoredUpload({ id: latest.id, filename: latest.filename, row_count: latest.row_count, is_financial: latest.file_type === "financial" });
         }
       } catch {
         // non-critical — chatbot still works without it

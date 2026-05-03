@@ -379,21 +379,32 @@ async def run_pipeline(
         return
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # ROUTE: ADVISORY — 4-agent pipeline + deep synthesis
+    # ROUTE: ADVISORY — parallel where possible, then synthesis
+    # MarketAgent and RevenueAgent run in parallel (both need only context)
+    # RiskAgent runs after (needs market), StrategyAgent last (needs all)
     # ═══════════════════════════════════════════════════════════════════════════
     market_dict: dict = {}
     risk_dict:   dict = {}
     rev_dict:    dict = {}
     strat_dict:  dict = {}
 
+    # Step 1: Market + Revenue in parallel (~2x speedup)
     try:
-        out = await loop.run_in_executor(None, market_agent.run, question, context, groq_sync)
-        market_dict = out.model_dump()
-        yield _sse("agent_update", {"agent_name": "MarketAgent", "content": json.dumps(market_dict), "timestamp": _ts()})
-    except Exception as exc:
-        logger.error("MarketAgent: %s", exc)
-        yield _sse("agent_update", {"agent_name": "MarketAgent", "content": "{}", "timestamp": _ts()})
+        market_fut = loop.run_in_executor(None, market_agent.run, question, context, groq_sync)
+        rev_fut    = loop.run_in_executor(None, revenue_agent.run, question, context, {}, groq_sync)
+        market_out, rev_out = await asyncio.gather(market_fut, rev_fut, return_exceptions=True)
 
+        if not isinstance(market_out, Exception):
+            market_dict = market_out.model_dump()
+        if not isinstance(rev_out, Exception):
+            rev_dict = rev_out.model_dump()
+
+        yield _sse("agent_update", {"agent_name": "MarketAgent",  "content": json.dumps(market_dict), "timestamp": _ts()})
+        yield _sse("agent_update", {"agent_name": "RevenueAgent", "content": json.dumps(rev_dict),   "timestamp": _ts()})
+    except Exception as exc:
+        logger.error("Parallel agents failed: %s", exc)
+
+    # Step 2: Risk (uses market output)
     try:
         out = await loop.run_in_executor(None, risk_agent.run, question, context, market_dict, groq_sync)
         risk_dict = out.model_dump()
@@ -402,14 +413,7 @@ async def run_pipeline(
         logger.error("RiskAgent: %s", exc)
         yield _sse("agent_update", {"agent_name": "RiskAgent", "content": "{}", "timestamp": _ts()})
 
-    try:
-        out = await loop.run_in_executor(None, revenue_agent.run, question, context, risk_dict, groq_sync)
-        rev_dict = out.model_dump()
-        yield _sse("agent_update", {"agent_name": "RevenueAgent", "content": json.dumps(rev_dict), "timestamp": _ts()})
-    except Exception as exc:
-        logger.error("RevenueAgent: %s", exc)
-        yield _sse("agent_update", {"agent_name": "RevenueAgent", "content": "{}", "timestamp": _ts()})
-
+    # Step 3: Strategy (uses all outputs)
     try:
         out = await loop.run_in_executor(None, strategy_agent.run, question, market_dict, risk_dict, rev_dict, groq_sync)
         strat_dict = out.model_dump()

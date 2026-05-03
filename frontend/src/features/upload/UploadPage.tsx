@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "@/shared/api/client";
+import { setStoredUpload } from "@/shared/utils/activeUpload";
 import { Spinner } from "@/shared/components/Spinner";
 import type { Upload } from "@/shared/types";
 import {
@@ -33,6 +34,12 @@ export function UploadPage() {
     try {
       const res = await api.upload<Upload>("/upload/financials", formData);
       setSuccess(res);
+      setStoredUpload({
+        id: res.upload_id,
+        filename: res.filename,
+        row_count: res.row_count ?? null,
+        is_financial: res.is_financial,
+      });
       setFile(null);
     } catch (err: any) {
       console.error("Upload error:", err);
