@@ -75,6 +75,6 @@ app.include_router(charts_router)
 app.include_router(founders_router)
 
 
-@app.get("/health", tags=["health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["health"])
 async def health() -> dict:
     return {"status": "ok", "version": "1.0.0", "environment": settings.environment}

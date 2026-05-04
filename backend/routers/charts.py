@@ -6,6 +6,7 @@ import httpx
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
+from groq import Groq
 from pydantic import BaseModel
 
 from backend.auth.middleware import get_current_founder

@@ -87,9 +87,6 @@ async def upsert_profile(
         payload["full_name"] = body.full_name
     if body.company_name is not None:
         payload["company_name"] = body.company_name
-    if body.active_upload_id is not None:
-        payload["active_upload_id"] = body.active_upload_id
-    # email: use body value or fall back to JWT claim (Supabase includes it)
     email = body.email or founder.get("email", "")
     if email:
         payload["email"] = email
