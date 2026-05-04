@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { supabase } from "@/shared/auth/supabase";
 import {
   LayoutDashboard,
@@ -12,7 +13,26 @@ import {
   ShieldCheck,
   LogOut,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
+
+function useBackendHealth() {
+  const [waking, setWaking] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => { if (!cancelled) setWaking(true); }, 1500);
+
+    fetch("/api/health")
+      .then(r => r.ok ? Promise.resolve() : Promise.reject())
+      .catch(() => {})
+      .finally(() => { clearTimeout(timer); if (!cancelled) setWaking(false); });
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, []);
+
+  return waking;
+}
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -29,6 +49,7 @@ const NAV = [
 export function Layout() {
   const navigate = useNavigate();
   const logout = async () => { await supabase.auth.signOut(); navigate("/"); };
+  const waking = useBackendHealth();
 
   return (
     <div className="flex h-screen bg-[#0a0a0f] text-white overflow-hidden selection:bg-[#6366f1]/30">
@@ -75,7 +96,14 @@ export function Layout() {
       <main className="flex-1 overflow-y-auto bg-[#0a0a0f] relative">
         {/* Universal Background Glow */}
         <div className="fixed top-[-10%] right-[-10%] w-[600px] h-[600px] bg-[#6366f1]/5 rounded-full blur-[140px] pointer-events-none -z-10" />
-        
+
+        {waking && (
+          <div className="flex items-center gap-3 px-5 py-3 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-sm">
+            <Loader2 size={15} className="animate-spin shrink-0" />
+            <span>Backend is waking up — this takes 30–60 s on the free tier. Features will be available shortly.</span>
+          </div>
+        )}
+
         <div className="p-10 min-h-full">
           <Outlet />
         </div>
