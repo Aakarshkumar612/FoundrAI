@@ -290,29 +290,35 @@ async def mfa_enroll(
 @router.post("/mfa/verify", response_model=MessageResponse)
 async def mfa_verify(
     body: MFAVerifyRequest,
+    request: Request,
+    founder: dict = Depends(verify_jwt),
     settings: Settings = Depends(get_settings),
 ) -> MessageResponse:
-    """Verify a TOTP code and upgrade the session to AAL2 (MFA-verified).
+    """Verify a TOTP code and upgrade the session to AAL2 (MFA-verified)."""
+    auth_header = request.headers.get("Authorization", "")
+    parts = auth_header.split(" ")
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "API_AUTH_001", "message": "Bearer token required"},
+        )
+    access_token = parts[1]
 
-    Args:
-        body: factor_id, challenge_id, and 6-digit TOTP code.
-        settings: App settings.
-
-    Returns:
-        Confirmation message on successful verification.
-    """
-    sb = _get_supabase(settings)
+    sb = create_client(settings.supabase_url, settings.supabase_key)
     try:
+        sb.auth.set_session(access_token, access_token)
+        # Refresh the challenge so it's never stale (challenges expire in ~5 min)
+        fresh_challenge = sb.auth.mfa.challenge({"factor_id": body.factor_id})
         sb.auth.mfa.verify({
             "factor_id": body.factor_id,
-            "challenge_id": body.challenge_id,
+            "challenge_id": fresh_challenge.id,
             "code": body.code,
         })
     except Exception as exc:
         logger.warning("MFA verify failed: %s", str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"code": "AUTH_TOKEN_002", "message": "Invalid TOTP code"},
+            detail={"code": "AUTH_TOKEN_002", "message": "Invalid TOTP code — check the time on your authenticator app"},
         )
 
     return MessageResponse(message="MFA verified — session upgraded to AAL2")
