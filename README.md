@@ -2,7 +2,7 @@
 
 FoundrAI gives startup founders a private AI analyst. Upload financial CSVs, ask natural-language questions, run scenario simulations, and get structured answers backed by your own data, live market news, and four specialist AI agents — all streamed in real time.
 
-**Live Demo:** Frontend → Vercel · Backend → Render · Database → Supabase
+**Live Demo:** [Frontend → Vercel](https://foundr-ai-coral.vercel.app) · [Backend → Render](https://foundr-ai-api.onrender.com) · Database → Supabase
 
 ---
 
@@ -191,7 +191,7 @@ pytest backend/tests/ -v --cov=backend --cov-report=term-missing
 
 4. **Click Create Web Service** — Render builds and deploys automatically.
 
-5. **Verify:** `curl https://your-api.onrender.com/health`
+5. **Verify:** `curl https://foundr-ai-api.onrender.com/health`
 
 > **Free tier cold starts:** The Render free tier sleeps after 15 minutes of inactivity. The included GitHub Actions cron (`keep-alive.yml`) pings `/health` every 5 minutes to prevent this. No external service required.
 
@@ -244,7 +244,7 @@ git push origin main
 
 ## Keep-Alive (Render Free Tier)
 
-The file `.github/workflows/keep-alive.yml` runs a GitHub Actions cron job every 5 minutes that pings `https://foundr-ai-api.onrender.com/health`. This keeps the Render free-tier instance awake 24/7 without any external paid service.
+The file `.github/workflows/keep-alive.yml` runs a GitHub Actions cron job every 5 minutes that pings [`https://foundr-ai-api.onrender.com/health`](https://foundr-ai-api.onrender.com/health). This keeps the Render free-tier instance awake 24/7 without any external paid service.
 
 To verify it's working: **GitHub → your repo → Actions → Keep Render Alive**
 
