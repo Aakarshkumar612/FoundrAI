@@ -84,7 +84,7 @@ async def simulate(
         founder_id, body.upload_id, body.months_ahead, body.growth_scenario,
     )
 
-    metrics = _fetch_metrics(founder_id, body.upload_id)
+    metrics = _fetch_metrics(founder_id, body.upload_id) if body.upload_id else {}
     revenue = metrics.get("revenue", BASE_REVENUE)
     burn = metrics.get("burn_rate", BASE_BURN)
 

@@ -16,7 +16,7 @@ export function MfaPage() {
     setLoading(true); setMsg("");
     try {
       const res = await api.post<any>("/auth/mfa/enroll", {});
-      setQrCode(res.qr_code_uri);
+      setQrCode(res.qr_code_svg ?? "");
       setFactorId(res.factor_id);
       setChallengeId(res.challenge_id);
     } catch (e: any) { setMsg(e.message); }

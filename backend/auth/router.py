@@ -221,12 +221,18 @@ async def mfa_enroll(
     settings: Settings = Depends(get_settings),
 ) -> MFAEnrollResponse:
     """Initiate TOTP MFA enrollment, handling existing factors gracefully."""
-    auth_header = request.headers.get("Authorization")
-    access_token = auth_header.split(" ")[1]
+    auth_header = request.headers.get("Authorization", "")
+    parts = auth_header.split(" ")
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "API_AUTH_001", "message": "Bearer token required for MFA enrollment"},
+        )
+    access_token = parts[1]
     sb = create_client(settings.supabase_url, settings.supabase_key)
-    
+
     try:
-        sb.auth.set_session(access_token, "") 
+        sb.auth.set_session(access_token, access_token)
         
         # 1. Check for existing factors first
         factors = sb.auth.mfa.list_factors()
@@ -247,6 +253,7 @@ async def mfa_enroll(
             factor_id=enroll_resp.id,
             challenge_id=challenge.id,
             totp_uri=enroll_resp.totp.uri,
+            qr_code_svg=enroll_resp.totp.qr_code,
         )
     except Exception as exc:
         logger.error("MFA enroll failed: %s", str(exc))

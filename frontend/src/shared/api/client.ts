@@ -1,6 +1,9 @@
 import { getAccessToken } from "@/shared/auth/supabase";
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
+// SSE streaming bypasses the Vercel proxy (which buffers chunked responses) and calls Render directly.
+// Set VITE_STREAM_URL=https://foundr-ai-api.onrender.com in Vercel env vars.
+const STREAM_BASE = (import.meta.env.VITE_STREAM_URL as string | undefined) ?? BASE;
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken();
@@ -30,7 +33,7 @@ export async function streamQuery(
   signal?: AbortSignal
 ): Promise<void> {
   const token = await getAccessToken();
-  const res = await fetch(`${BASE}/query`, {
+  const res = await fetch(`${STREAM_BASE}/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ question, upload_id: uploadId }),
