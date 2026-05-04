@@ -14,8 +14,8 @@ passlib[bcrypt]==1.7.4
 # AI
 groq==0.9.0
 
-# RAG
-sentence-transformers==2.7.0
+# RAG — fastembed uses ONNX Runtime (no PyTorch/CUDA), fits within 512MB Render free tier
+fastembed>=0.3.6
 pgvector==0.2.5
 
 # Web search (free, no API key)

@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("FoundrAI backend starting — environment: %s", settings.environment)
     get_supabase_client()  # warm DB connection
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, get_encoder)  # pre-load 80MB embedding model off the event loop
+    await loop.run_in_executor(None, get_encoder)  # pre-load ONNX embedding model off the event loop
     logger.info("Embedding model ready")
     yield
     logger.info("FoundrAI backend shutting down")
