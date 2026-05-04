@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # App config
     environment: str = "development"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+    # Regex applied in addition to cors_origins — matches all Vercel preview + production domains by default.
+    # Override via CORS_ALLOW_ORIGIN_REGEX env var (set to empty string "" to disable).
+    cors_allow_origin_regex: str = r"https://.*\.vercel\.app"
     log_level: str = "INFO"
     max_upload_size_bytes: int = 10_485_760  # 10MB
     port: int = 8000
