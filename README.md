@@ -22,16 +22,17 @@ FoundrAI gives startup founders a private AI analyst. Upload financial CSVs, ask
 | Backend API | FastAPI + Uvicorn (Python 3.12) | Async SSE streaming, type-safe Pydantic schemas |
 | AI LLM | Groq API — Llama 3.1-8b / 3.3-70b / 3.2-Vision | ~500 tok/sec, vision for image analysis |
 | AI Agents | 3-Route Orchestrator + 4-Agent Pipeline | ~73% token savings via query classification |
-| Embeddings | sentence-transformers all-MiniLM-L6-v2 | Local 384-dim embeddings for RAG |
+| Embeddings | fastembed `BAAI/bge-small-en-v1.5` (ONNX Runtime) | 384-dim embeddings, no PyTorch/CUDA — fits 512MB RAM |
 | Vector DB | pgvector on Supabase PostgreSQL 15 | Cosine similarity search, same DB as app data |
 | Simulation | NumPy vectorised Monte Carlo (10K paths) | <200ms, no GPU required |
-| Auth | Supabase Auth + PyJWT middleware | HS256/RS256 JWT, TOTP MFA, self-healing profile sync |
+| Auth | Supabase Auth + ES256 JWKS middleware | ES256 JWT (JWKS-verified), TOTP MFA, self-healing profile sync |
 | Database | Supabase PostgreSQL 15 | RLS per table, pgvector extension, file storage |
 | Frontend | React 18 + Vite 5 + TypeScript 5 | SPA, HMR, tree-shaking |
 | Styling | TailwindCSS 3 | Utility-first dark theme |
 | Charts | Recharts 2 | AreaChart confidence bands |
 | **Backend Deploy** | **Render** | Managed Python hosting, GitHub auto-deploy |
 | **Frontend Deploy** | **Vercel** | Edge CDN, instant deploys, HTTPS automatic |
+| **Keep-Alive** | **GitHub Actions cron** | Pings `/health` every 5 min — prevents Render free-tier sleep |
 
 ---
 
@@ -39,12 +40,18 @@ FoundrAI gives startup founders a private AI analyst. Upload financial CSVs, ask
 
 ```
 FoundrAI/
+├── .github/
+│   └── workflows/
+│       ├── deploy.yml               # CI: backend tests + frontend build on every push
+│       └── keep-alive.yml           # Cron: pings Render /health every 5 min
+│
 ├── backend/
-│   ├── main.py                      # FastAPI app, CORS, lifespan, routers
-│   ├── config.py                    # pydantic-settings env vars
+│   ├── main.py                      # FastAPI app, CORS, lifespan, routers, root health route
+│   ├── config.py                    # pydantic-settings env vars + cors_allow_origin_regex
+│   ├── Dockerfile                   # Uses ${PORT:-8000}, pre-bakes fastembed ONNX model
 │   ├── auth/
-│   │   ├── router.py                # Register, Login, MFA, /me
-│   │   └── middleware.py            # JWT verify + self-healing founder profile
+│   │   ├── router.py                # Register, Login (auto-creates missing profile), MFA, /me
+│   │   └── middleware.py            # ES256 JWKS verification + self-healing founder profile
 │   ├── agents/
 │   │   ├── orchestrator.py          # 3-Route pipeline (data/web/advisory) + CSV context
 │   │   ├── market_agent.py          # TAM/SAM/SOM analysis
@@ -54,7 +61,7 @@ FoundrAI/
 │   ├── rag/
 │   │   ├── pipeline.py              # RAGPipeline: index + query
 │   │   ├── indexer.py               # Chunking + embedding + pgvector upsert
-│   │   ├── encoder.py               # SentenceTransformer singleton
+│   │   ├── encoder.py               # fastembed ONNX singleton (replaces sentence-transformers)
 │   │   └── retriever.py             # pgvector cosine similarity search
 │   ├── automl/
 │   │   ├── monte_carlo.py           # 10K-path NumPy simulation
@@ -65,7 +72,7 @@ FoundrAI/
 │   ├── routers/
 │   │   ├── upload.py                # POST /upload/financials (async background)
 │   │   ├── query.py                 # POST /query (SSE) + _fetch_upload_context()
-│   │   ├── simulate.py              # POST /simulate
+│   │   ├── simulate.py              # POST /simulate (guards against missing upload_id)
 │   │   ├── charts.py                # GET /charts/simulations
 │   │   ├── founders.py              # Profile + uploads CRUD
 │   │   └── news.py                  # GET /news/latest
@@ -81,18 +88,22 @@ FoundrAI/
 │       └── test_extractors.py
 │
 ├── frontend/
+│   ├── vercel.json                  # /api/* proxy → Render + SPA catch-all
 │   └── src/
 │       ├── features/
-│       │   ├── auth/                # Login, Register pages
+│       │   ├── auth/                # Login, Register, MfaPage (TOTP enroll + verify)
 │       │   ├── dashboard/           # Metrics overview
 │       │   ├── upload/              # File upload UI
 │       │   ├── query/               # AI chatbot (SSE streaming, CSV badge)
 │       │   ├── simulate/            # Monte Carlo sliders + chart
 │       │   └── charts/              # Historical simulation charts
 │       └── shared/
-│           ├── api/client.ts        # fetch wrapper + streamQuery() SSE reader
+│           ├── api/client.ts        # fetch wrapper + streamQuery() — SSE hits Render directly
 │           ├── auth/supabase.ts     # Supabase JS client
-│           └── components/          # Layout, Spinner, shared UI
+│           └── components/
+│               ├── Layout.tsx       # Sidebar + backend wake-up banner (cold start UX)
+│               ├── ProtectedRoute.tsx
+│               └── Spinner.tsx
 │
 ├── system_design.html               # Full system design documentation
 ├── requirements.txt
@@ -116,6 +127,11 @@ FoundrAI/
 # From project root
 conda create -n foundr-ai python=3.12 -y
 conda activate foundr-ai
+
+# Install compiled packages via conda first (avoids C compiler errors on Windows)
+conda install numpy scipy pandas scikit-learn -y
+
+# Then install the rest
 pip install -r requirements.txt
 
 # Copy and fill env vars
@@ -128,6 +144,8 @@ cp .env.example .env
 # Start backend (must run from project root, not from backend/)
 uvicorn backend.main:app --reload --port 8000 --host 0.0.0.0
 ```
+
+> **Note:** On first startup, fastembed downloads the ONNX model (~33MB) from HuggingFace. This takes ~15 seconds once, then it's cached locally.
 
 ### Frontend
 
@@ -155,9 +173,8 @@ pytest backend/tests/ -v --cov=backend --cov-report=term-missing
 2. **Create Web Service on Render**
    - Go to render.com → New → Web Service
    - Connect your GitHub repo
-   - **Runtime:** Python 3
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+   - **Runtime:** Docker (uses `backend/Dockerfile`)
+   - The Dockerfile pre-bakes the fastembed ONNX model at build time for instant startup
 
 3. **Set Environment Variables** in Render dashboard:
 
@@ -176,18 +193,15 @@ pytest backend/tests/ -v --cov=backend --cov-report=term-missing
 
 5. **Verify:** `curl https://your-api.onrender.com/health`
 
-> **Note:** Free tier spins down after 15min inactivity (30s cold start). Upgrade to Starter ($7/mo) for always-on.
+> **Free tier cold starts:** The Render free tier sleeps after 15 minutes of inactivity. The included GitHub Actions cron (`keep-alive.yml`) pings `/health` every 5 minutes to prevent this. No external service required.
 
 ---
 
 ### Frontend → Vercel
 
-1. **Create `frontend/vercel.json`** (for SPA routing):
-   ```json
-   {
-     "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-   }
-   ```
+1. **`frontend/vercel.json`** is already configured with:
+   - `/api/:path*` → proxied to Render backend (no CORS issues for regular calls)
+   - `/(.*)`  → `/index.html` (SPA routing)
 
 2. **Create Vercel Project**
    - Go to vercel.com → New Project → Import GitHub repo
@@ -200,13 +214,19 @@ pytest backend/tests/ -v --cov=backend --cov-report=term-missing
 
    | Variable | Value |
    |----------|-------|
-   | `VITE_API_URL` | `https://your-api.onrender.com/api` |
    | `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` |
    | `VITE_SUPABASE_ANON_KEY` | your anon key (safe to expose) |
 
-4. **Click Deploy** — every `git push` to `main` auto-deploys.
+   > `VITE_API_URL` is **not needed** — the `vercel.json` proxy handles all `/api/*` routing automatically.
+   > `VITE_STREAM_URL` is **not needed** — the Render URL is hardcoded as the SSE fallback in `client.ts`.
 
-5. **Update CORS on Render** — add your Vercel URL to `CORS_ORIGINS` env var on Render.
+4. **Disable Deployment Protection**
+   - Vercel → Project → Settings → Deployment Protection → **Disabled**
+   - Without this, preview URLs return 403 to all non-Vercel-team visitors.
+
+5. **Click Deploy** — every `git push` to `main` auto-deploys.
+
+6. **Update CORS on Render** — add your Vercel production URL to `CORS_ORIGINS` env var on Render. Preview URLs are covered automatically by the `CORS_ALLOW_ORIGIN_REGEX` (`https://.*\.vercel\.app`).
 
 ---
 
@@ -214,10 +234,19 @@ pytest backend/tests/ -v --cov=backend --cov-report=term-missing
 
 ```
 git push origin main
-  → Render rebuilds backend (~2 min)
-  → Vercel rebuilds frontend (~30 sec)
-  → Both live automatically
+  → GitHub Actions: runs backend unit tests + frontend build check (~2 min)
+  → Render: rebuilds and redeploys backend (~3-5 min)
+  → Vercel: rebuilds and redeploys frontend (~30 sec)
+  → All live automatically, no manual steps
 ```
+
+---
+
+## Keep-Alive (Render Free Tier)
+
+The file `.github/workflows/keep-alive.yml` runs a GitHub Actions cron job every 5 minutes that pings `https://foundr-ai-api.onrender.com/health`. This keeps the Render free-tier instance awake 24/7 without any external paid service.
+
+To verify it's working: **GitHub → your repo → Actions → Keep Render Alive**
 
 ---
 
@@ -246,6 +275,14 @@ Run in order in Supabase → SQL Editor:
 **Immediate Upload Response** — The upload endpoint returns in <100ms. All heavy work (Storage, embedding, financial_rows insert) runs in a FastAPI `BackgroundTask` so the user isn't blocked waiting.
 
 **3-Route Token Efficiency** — The query classifier costs ~150 tokens. Data and web routes cost ~700–900 tokens total. The full advisory route costs ~8,000 tokens. Routing saves ~73% of token spend across typical usage.
+
+**ONNX Embeddings (no PyTorch)** — `sentence-transformers` was replaced with `fastembed` (ONNX Runtime). PyTorch + CUDA binaries total ~2GB and caused OOM crashes on Render's 512MB free tier. The ONNX model is ~33MB and uses ~100MB RAM at runtime with identical 384-dim output.
+
+**ES256 JWT Verification** — Supabase issues ES256 tokens (ECDSA). The auth middleware fetches the JWKS public key from Supabase's `.well-known/jwks.json` endpoint and verifies signatures cryptographically — no shared secret required.
+
+**Self-Healing Founder Profile** — If a user authenticates via Supabase but their `founders` row is missing (e.g. created directly in Supabase dashboard), the auth middleware and login endpoint auto-create a default profile instead of returning 403.
+
+**SSE Bypasses Vercel Proxy** — Vercel's edge proxy buffers chunked responses, breaking real-time streaming. The `streamQuery()` function calls Render directly using a hardcoded fallback URL, bypassing the proxy entirely for SSE.
 
 ---
 
