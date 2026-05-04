@@ -139,22 +139,37 @@ async def login(body: LoginRequest, settings: Settings = Depends(get_settings)) 
         )
 
     user_id = auth_resp.user.id
-    try:
-        result = (
-            sb_admin.table("founders")
-            .select("*")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-    except Exception as exc:
-        logger.error("Founder profile fetch failed for %s: %s", user_id, str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "AUTH_LOGIN_001", "message": "Founder profile not found"},
-        )
+    email = auth_resp.user.email or body.email
 
-    return _build_auth_response(auth_resp.session, result.data)
+    result = (
+        sb_admin.table("founders")
+        .select("*")
+        .eq("id", user_id)
+        .maybe_single()
+        .execute()
+    )
+
+    if result.data is None:
+        # Auth user exists but profile row missing — create it now
+        logger.warning("Login: founder profile missing for %s — auto-creating", user_id)
+        try:
+            created = sb_admin.table("founders").insert({
+                "id": user_id,
+                "email": email,
+                "full_name": "Founder",
+                "company_name": "",
+            }).execute()
+            founder_row = created.data[0]
+        except Exception as exc:
+            logger.error("Auto-create founder profile failed for %s: %s", user_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"code": "AUTH_LOGIN_001", "message": "Account profile setup failed"},
+            )
+    else:
+        founder_row = result.data
+
+    return _build_auth_response(auth_resp.session, founder_row)
 
 
 @router.post("/refresh", response_model=AuthResponse)
@@ -187,7 +202,12 @@ async def refresh_token(body: RefreshRequest, settings: Settings = Depends(get_s
         )
 
     user_id = auth_resp.user.id
-    result = sb_admin.table("founders").select("*").eq("id", user_id).single().execute()
+    result = sb_admin.table("founders").select("*").eq("id", user_id).maybe_single().execute()
+    if result.data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "AUTH_TOKEN_001", "message": "Founder profile not found"},
+        )
     return _build_auth_response(auth_resp.session, result.data)
 
 
