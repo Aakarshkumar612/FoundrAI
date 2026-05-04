@@ -58,7 +58,12 @@
       "Bash(python -m pytest backend/tests/test_integration.py::TestFullFounderJourney::test_09_embed_token -v --tb=long)",
       "Bash(python -m pytest backend/tests/test_integration.py::TestFullFounderJourney::test_09_embed_token -v --tb=short)",
       "Bash(Remove-Item *)",
-      "Bash(python -c \"import backend.main\")"
+      "Bash(python -c \"import backend.main\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "WebFetch(domain:foundr-ai-api.onrender.com)",
+      "WebFetch(domain:foundr-ai-coral.vercel.app)"
     ]
   }
 }
